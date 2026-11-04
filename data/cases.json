@@ -1,18 +1,18 @@
 [
   {
     "case_id": "CASE-REV-0a31e0",
-    "title": "Abhijeet bhosale",
+    "title": "Ganesh Pawar vs. Tahsildar, Haveli",
     "case_type": "Revenue",
     "case_number": "Unregistered",
-    "court": "High Court of Judicature at Bombay",
-    "client_name": "Abhijeet bhosale",
+    "court": "Sub-Divisional Officer, Haveli",
+    "client_name": "Ganesh Pawar",
     "client_role": "Applicant / Revisionist",
-    "opposite_party": "police",
+    "opposite_party": "Tahsildar, Haveli (State of Maharashtra)",
     "filing_date": "2026-10-14",
     "next_hearing_date": "2026-11-04",
     "status": "Draft / Pre-filing",
     "acts_sections": "Land Revenue Code Sec. 44, 247, 257; Tenancy Act Sec. 84",
-    "description": "case filing",
+    "description": "Fictional sample matter: revision against a mutation entry under the MLRC.",
     "created_at": "2026-10-14T21:38:39.128374",
     "notes": []
   },
