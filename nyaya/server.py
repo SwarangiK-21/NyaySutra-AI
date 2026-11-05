@@ -25,8 +25,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from . import (accounts, agent, authz, awareness, cases, casesearch, citations, config, db, docintel, drafting,
-               embeddings, events, export, filescan, indiacode, ingest, integrations, jobs, llm, mailer, ocr, privacy,
-               provisions, reference, retrieval, search, security, sessions, storage, tasks, tools)
+               embeddings, events, export, filescan, guardrails, indiacode, ingest, integrations, jobs, llm, mailer, ocr,
+               privacy, provisions, reference, retrieval, search, security, sessions, storage, tasks, tools)
 from . import supabase_auth as sb
 from .authz import Principal
 from .vectorindex import index
@@ -167,6 +167,56 @@ P = Depends(principal)
 
 # ── Security middleware ──────────────────────────────────────────────────────
 SAFE_METHODS = ("GET", "HEAD", "OPTIONS")
+
+
+UPLOAD_PATH = re.compile(r"^/api/cases/[^/]+/documents$")
+
+
+class BodyLimit:
+    """Refuse oversized request bodies before any route reads them (which would hold JSON in memory or spool a
+    multipart upload to disk first): case uploads up to MAX_UPLOAD_MB plus 1 MB of form framing, anything else up
+    to MAX_REQUEST_MB. Checks the declared Content-Length and counts the bytes actually received, so a chunked
+    body without a length is stopped too."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["method"] in SAFE_METHODS:
+            return await self.app(scope, receive, send)
+        mb = config.MAX_UPLOAD_MB + 1 if UPLOAD_PATH.match(scope["path"]) else config.MAX_REQUEST_MB
+        limit = mb * 1024 * 1024
+        too_large = HTTPException(413, f"The request is larger than {mb} MB.")
+        declared = dict(scope["headers"]).get(b"content-length")
+        if declared is not None and (not declared.isdigit() or int(declared) > limit):
+            return await JSONResponse({"detail": too_large.detail}, status_code=413)(scope, receive, send)
+        received, started = 0, False
+
+        async def counted():
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > limit:
+                    raise too_large   # FastAPI re-raises HTTPException from body parsing: the route never runs
+            return message
+
+        async def tracked(message):
+            nonlocal started
+            started = started or message["type"] == "http.response.start"
+            await send(message)
+
+        try:
+            await self.app(scope, counted, tracked)
+        except HTTPException as exc:
+            if exc is not too_large or started:
+                raise
+            await JSONResponse({"detail": exc.detail}, status_code=413)(scope, receive, send)
+
+
+# Registered before guard, so it runs inside it: an error raised while the route reads the body then reaches FastAPI
+# directly (raised through guard's task group it would arrive wrapped, and FastAPI would answer 400).
+app.add_middleware(BodyLimit)
 
 
 @app.middleware("http")
@@ -1602,6 +1652,9 @@ def add_forum_requirement(forum_id: str, body: ForumReqIn, p: Principal = Depend
         drafting.forum(forum_id)
     except ValueError as exc:
         raise HTTPException(404, str(exc))
+    if guardrails.is_suspicious(body.text):   # it would be shown to the model in every lawyer's drafts
+        db.audit("forum.requirement_add", "forum", forum_id, outcome="rejected", reason="instruction_like_text")
+        raise HTTPException(422, "This reads like an instruction to the AI, not a filing requirement.")
     items = drafting.user_requirements(forum_id) + [body.model_dump()]
     db.set_setting(f"forum_reqs:{forum_id}", json.dumps(items[-50:], ensure_ascii=False))
     db.audit("forum.requirement_add", "forum", forum_id, url=body.url)

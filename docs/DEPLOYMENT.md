@@ -108,6 +108,8 @@ them; the app refuses to start against an older schema.
 |---|---|---|
 | `PUBLIC_URL` | `https://your-domain` | links in e-mails; marks session cookies Secure |
 | `ALLOWED_HOSTS` | `your-domain` | blocks requests for other host names |
+| `SIGNUP_MODE` | `invite_only` | only e-mail addresses an administrator invites get access; `open` lets anyone register as a Lawyer in your organisation |
+| `MAX_UPLOAD_MB` / `MAX_REQUEST_MB` | `40` / `2` (defaults) | larger case uploads / other request bodies are refused with 413 before they are read; keep Caddy's `max_size` above the upload limit |
 | `APP_HOST` | `0.0.0.0` (set by compose) | listen inside the container |
 | `TRUSTED_PROXY_IPS` | `*` (set by compose) | real client IPs for rate limits and the audit log |
 | `RETENTION_ENABLED` | `true` (default) | daily data-retention clean-up (docs/DATA_RETENTION.md) |

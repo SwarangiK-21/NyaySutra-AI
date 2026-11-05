@@ -686,7 +686,7 @@
 "forum.official": "Official sources",
 "forum.requirements": "Requirements",
 "forum.none": "No verified requirements recorded for this forum.",
-"forum.user_supplied": "added by you",
+"forum.user_supplied": "added by an administrator — not verified",
 "forum.source": "source",
 "forum.add": "Add a requirement you verified",
 "forum.req_text": "Requirement",

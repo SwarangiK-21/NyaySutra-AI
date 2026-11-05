@@ -189,6 +189,7 @@ ALLOWED_HOSTS = [h.strip() for h in _env("ALLOWED_HOSTS", default="127.0.0.1,loc
 # app port is not published): then the client IP and https are read from the proxy's X-Forwarded-* headers.
 TRUSTED_PROXY_IPS = _env("TRUSTED_PROXY_IPS")
 MAX_UPLOAD_MB = int(_env("MAX_UPLOAD_MB", default="40"))
+MAX_REQUEST_MB = int(_env("MAX_REQUEST_MB", default="2"))   # any other request body (JSON forms, drafts)
 MAX_PDF_PAGES = int(_env("MAX_PDF_PAGES", default="2000"))
 CHAT_RATE_PER_MIN = int(_env("CHAT_RATE_PER_MIN", default="20"))
 

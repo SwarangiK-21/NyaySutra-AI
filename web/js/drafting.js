@@ -119,7 +119,7 @@ function forumPanel(f) {
     ${f.requirements.length ? f.requirements.map((r) => r.provision ? html`<div class="small" style="margin-bottom:6px">${r.text}: ${provCard(r.provision)}</div>`
       : html`<div class="prov small">${r.text} <span class="chip">${t("forum.user_supplied")}</span> <a href="${r.url}" target="_blank" rel="noopener noreferrer">${t("forum.source")} ↗</a> <span class="muted">${r.verified_on}</span></div>`) : html`<div class="small muted">${t("forum.none")}</div>`}
     ${f.confirm.map((c) => html`<div class="notice" style="margin-top:6px">⚠ ${c}</div>`)}
-    ${f.id !== "none" ? html`<details style="margin-top:8px"><summary class="small">${t("forum.add")}</summary><form id="reqForm" class="stack small" style="margin-top:6px">
+    ${f.id !== "none" && state.session?.permissions?.includes("forum.edit") ? html`<details style="margin-top:8px"><summary class="small">${t("forum.add")}</summary><form id="reqForm" class="stack small" style="margin-top:6px">
       <input type="text" name="text" placeholder="${t("forum.req_text")}" required aria-label="${t("forum.req_text")}">
       <input type="text" name="url" placeholder="https://… (${t("forum.official_url")})" required aria-label="${t("forum.official_url")}">
       <input type="date" name="verified_on" required aria-label="${t("forum.verified_on")}">

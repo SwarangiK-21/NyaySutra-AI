@@ -188,9 +188,13 @@ def generate(*, doc_type_id: str, forum_id: str, style: str = "formal", lang: st
 
     progress(2, 4, "Writing the draft")
     reqs = [f"- {r['text']}: " + (f"{r['provision']['label']} of {r['provision']['act_title']} (verified in library)"
-                                  if r.get("status") == "verified_in_library" else
-                                  "user-supplied requirement" if r["source"] == "user" else "CONFIRM — not verified")
-            for r in fprof["requirements"]] + [f"- CONFIRM: {c}" for c in fprof.get("confirm", [])]
+                                  if r.get("status") == "verified_in_library" else "CONFIRM — not verified")
+            for r in fprof["requirements"] if r["source"] != "user"] + [f"- CONFIRM: {c}" for c in fprof.get("confirm", [])]
+    # Requirements typed in by the organisation are data, like any source: delimited, neutralised, flagged if they
+    # read like instructions, and numbered U1, U2… so they cannot be mistaken for the citable LAW sources [n].
+    reqs += [guardrails.wrap_source(f"U{i}", "user_requirement", f"Unverified requirement added by the organisation "
+                                    f"(source {r.get('url', '')}, checked {r.get('verified_on', '')})", r["text"])
+             for i, r in enumerate((r for r in fprof["requirements"] if r["source"] == "user"), 1)]
     facts_txt = "\n".join(f"{f['id']} [{f['origin']}: {f.get('ref', '')}] {f['text']}" for f in facts) or "(no facts supplied)"
     law_txt = "\n\n".join(guardrails.wrap_source(i, h.collection, f"[{i}] {h.header}"
                                                  f"{f' | p. {h.page_start}' if h.page_start else ''}", h.text[:2500])

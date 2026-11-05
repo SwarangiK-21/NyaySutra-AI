@@ -158,5 +158,7 @@ afterwards): set `NYAYA_LIVE_SUPABASE=1`.
   Provenance and checksums: `data/library/bare_acts/manifest.json`.
 * Sample judgments: Indian Kanoon.
 * Draft templates: original model drafts written for this project — verify against current law and local practice.
+* Demo matters (`data/cases.json`) and `data/samples/`: fictional. Names, parties and case numbers are invented; they
+  only seed an empty offline database on first run.
 
 *AI-generated research aid, not legal advice. Verify every citation against the primary source.*
