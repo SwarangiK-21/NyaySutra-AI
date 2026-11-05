@@ -83,6 +83,17 @@ stray membership row existed.
 * **Limit:** the system context is a claim set by backend code on a shared role. RLS therefore protects against
   missing checks in application code, not against an attacker who can run arbitrary SQL as `nyaya_app`. SQL injection
   is prevented by parameterised queries everywhere.
+* **Edits outside the app** (`supabase/migrations/20261102000011_lock_direct_edits.sql`): RLS does not bind the owner
+  role `postgres` used by the Table Editor and SQL Editor, so every table in `public` also refuses changes from any
+  session not logged in as `nyaya_app`. The app must therefore connect as `nyaya_app`.
+  * **Planned maintenance:** run the change in one transaction after `set local nyaya.maintenance = 'on';`. The lock
+    returns when the transaction ends, so migrations that change data need this line too.
+  * **Change log:** `select * from private.data_changes order by id desc;` lists changes that got through outside the
+    app, and disabled or dropped triggers: who, when, which row and columns, never the values. Refused edits are
+    undone, so they leave no row. Only the owner can read it, and it cannot be edited.
+  * **New tables:** the migration that creates one must end with `select private.guard_all_tables();`.
+  * **Limit:** the owner can remove the triggers, so this stops accidents and leaves a trail; it does not replace MFA on
+    the Supabase account. `auth.users` and Storage are outside it.
 
 ## 5. AI guardrails (`nyaya/guardrails.py`, `nyaya/privacy.py`)
 
