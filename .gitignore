@@ -21,3 +21,5 @@ data/library/judgments/supreme_court/
 docs/competitive_analysis/eval/web_recording.json
 # security audit reports and scan output (the repository is public)
 security-audit/
+# local tool settings
+.claude/
