@@ -21,9 +21,11 @@ def main() -> int:
 
     local = config.APP_HOST in ("127.0.0.1", "localhost", "::1")
     accounts = config.auth_mode() == "supabase"
-    if not local and not accounts and not config.APP_PASSWORD:
-        print("Refusing to listen on a network interface in single-user mode without APP_PASSWORD set in .env "
-              "(client documents would be exposed). Configure Supabase Auth, set APP_PASSWORD, or use APP_HOST=127.0.0.1.")
+    # Behind a reverse proxy the app listens on 127.0.0.1 but is reachable from the network all the same.
+    if (not local or config.TRUSTED_PROXY_IPS) and not accounts and not config.APP_PASSWORD:
+        print("Refusing to serve single-user mode on a network interface or behind a reverse proxy without "
+              "APP_PASSWORD set in .env (client documents would be exposed). Configure Supabase Auth, set APP_PASSWORD, "
+              "or use APP_HOST=127.0.0.1 without a proxy.")
         return 2
     if not local and not config.PUBLIC_URL.startswith("https://"):
         print("Warning: serving on a network interface without HTTPS. Put the app behind a TLS reverse proxy and set "

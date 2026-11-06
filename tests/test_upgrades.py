@@ -12,7 +12,7 @@ import httpx
 import pytest
 
 from nyaya import accounts, config, db, events, indiacode, ingest, mailer, retrieval
-from test_security import PW, chat, fake, guest, new_case, person, security_limiter_reset, signed_in  # noqa: F401
+from test_security import BASE, PW, chat, fake, guest, new_case, person, security_limiter_reset, signed_in  # noqa: F401
 
 
 def _future(days: int) -> str:
@@ -496,6 +496,20 @@ def test_screening_catches_hindi_marathi_and_encoded_instructions():
                "Status of CNR MHPU010012342023 under section 138"]
     assert all(guardrails.screen_request(t) for t in refused)
     assert not any(guardrails.screen_request(t) for t in allowed)
+
+
+def test_passwordless_single_user_mode_refuses_proxied_requests(fresh_db, monkeypatch):
+    """Local mode with no APP_PASSWORD signs in whoever connects: requests that came through a proxy are refused."""
+    from fastapi.testclient import TestClient
+    from nyaya.server import app
+    monkeypatch.setattr(config, "APP_PASSWORD", "")
+    with TestClient(app, base_url=BASE) as client:
+        assert client.get("/api/health").status_code == 200
+        for h in ({"X-Forwarded-For": "203.0.113.9"}, {"Forwarded": "for=203.0.113.9"}, {"X-Real-IP": "203.0.113.9"}):
+            r = client.get("/api/cases", headers=h)
+            assert r.status_code == 403 and "APP_PASSWORD" in r.json()["detail"]
+        monkeypatch.setattr(config, "APP_PASSWORD", "local-test-password-1")
+        assert client.get("/api/health", headers={"X-Forwarded-For": "203.0.113.9"}).status_code == 200
 
 
 def test_mfa_enrolment_cannot_be_finished_from_a_half_signed_in_session():

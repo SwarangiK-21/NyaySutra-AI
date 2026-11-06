@@ -224,6 +224,12 @@ async def guard(request: Request, call_next):
     host = request.headers.get("host")
     if not security.host_allowed(host, client_ip(request)):
         return JSONResponse({"detail": "Host not allowed"}, status_code=400)
+    # Single-user mode without a password signs in whoever connects: fine on one computer, never through a proxy.
+    if not config.APP_PASSWORD and accounts.mode() == "local" and any(
+            h in request.headers for h in ("x-forwarded-for", "forwarded", "x-real-ip")):
+        return JSONResponse({"detail": "Single-user mode without APP_PASSWORD only serves this computer. Set "
+                             "APP_PASSWORD or configure Supabase accounts before putting it behind a proxy."},
+                            status_code=403)
     path = request.url.path
     if path.startswith("/api/") and request.method not in SAFE_METHODS:
         if not security.origin_allowed(request.headers.get("origin"), host):

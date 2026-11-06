@@ -15,8 +15,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     MODEL_CACHE=/opt/nyaysutra/models \
     HF_HUB_DISABLE_PROGRESS_BARS=1
 
-# libgomp1: OpenMP runtime used by ONNX Runtime (embeddings, re-ranker, OCR). No curl: the health check uses Python.
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
+# libgomp1: OpenMP runtime used by ONNX Runtime (embeddings, re-ranker, OCR). fonts-noto-core: Latin + Devanagari
+# for PDF export (Hindi/Marathi drafts). No curl: the health check uses Python.
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 fonts-noto-core \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/nyaysutra/app
