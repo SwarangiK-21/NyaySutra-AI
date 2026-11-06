@@ -20,4 +20,4 @@ uharfbuzz==0.56.3         # text shaping so Hindi / Marathi render correctly in 
 defusedxml==0.7.1         # safe parsing of external RSS / XML feeds
 psycopg[binary]==3.3.6    # Supabase Postgres (primary database when SUPABASE_DB_URL is set)
 psycopg-pool==3.3.3       # connection pool for the backend
-pytest==9.1.1
+# Test tools are in requirements-dev.txt (not installed in the container image).

@@ -134,7 +134,7 @@ cd NyaySutra-AI
 
 # one-time: create the environment and install dependencies
 py -3.12 -m venv "$env:USERPROFILE\.nyaysutra\venv"
-& "$env:USERPROFILE\.nyaysutra\venv\Scripts\python.exe" -m pip install -r requirements.txt
+& "$env:USERPROFILE\.nyaysutra\venv\Scripts\python.exe" -m pip install -r requirements-dev.txt   # app + test tools
 
 # configure
 Copy-Item .env.example .env      # then add OLLAMA_API_KEY (and Supabase values if you use it)

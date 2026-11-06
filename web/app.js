@@ -3,6 +3,7 @@
 import { $, $$, ACCEPT_UPLOADS, api, bindRowLinks, bindTabs, COLL_LABEL, crumbs, fieldError, fmtDate, formData, hideDrawer, html,
   initSession, markdown, mount, num, raw, reference, setUnauthenticatedHandler, showDrawer, spinner, state, store,
   tabBar, tabPanel, toast, TYPE_BADGE } from "./js/core.js";
+import { safeUrl } from "./js/core.js";
 import { applyStatic, initialLang, lang, LANGS, setLang, t } from "./js/i18n.js";
 import { viewCaseSearch } from "./js/casesearch.js";
 import { openDocument, viewDocument, viewUpload } from "./js/docs.js";
@@ -880,7 +881,7 @@ async function viewActs(main, r) {
         ${can("research.use") ? html`<a class="btn btn-ghost btn-sm" href="#/ask?case=&q=${encodeURIComponent(`Under the ${a.title}, `)}">${t("acts.ask")}</a>` : ""}
         <details class="menu"><summary class="btn btn-ghost btn-sm">${t("common.open")}</summary><div class="menu-list">
           <a href="/api/documents/${encodeURIComponent(a.id)}/file" target="_blank" rel="noopener">${t("acts.open_pdf")} ↗</a>
-          ${a.meta.item_url ? html`<a href="${a.meta.item_url}" target="_blank" rel="noopener noreferrer">India Code ↗</a>` : ""}</div></details></div></li>`)}</ul>`
+          ${a.meta.item_url ? html`<a href="${safeUrl(a.meta.item_url)}" target="_blank" rel="noopener noreferrer">India Code ↗</a>` : ""}</div></details></div></li>`)}</ul>`
       : html`<div class="card-b"><div class="notice">${t("acts.empty")}</div></div>`}
     <div class="card-b small muted">${t("acts.more_states")} <a href="#/acts?tab=catalogue">${t("acts.tab_catalogue")} →</a></div></div>` : html`
     <div class="card"><div class="card-h"><h2>${t("acts.precedents")}</h2></div>
@@ -899,7 +900,7 @@ async function viewActs(main, r) {
       try {
         const res = await api(`/api/search?q=${encodeURIComponent(q)}&types=judgment`);
         mount($("#jResults"), res.results.length ? html`${res.results.map((x) => html`<div class="result"><h3>${x.title}</h3>
-          <div class="small muted">${x.label || ""}${x.page ? ` · p. ${x.page}` : ""} · <a href="${x.url}" target="_blank" rel="noopener">${t("acts.open_pdf")} ↗</a></div><pre>${x.snippet}</pre></div>`)}`
+          <div class="small muted">${x.label || ""}${x.page ? ` · p. ${x.page}` : ""} · <a href="${safeUrl(x.url)}" target="_blank" rel="noopener">${t("acts.open_pdf")} ↗</a></div><pre>${x.snippet}</pre></div>`)}`
           : html`<div class="card-b empty">${t("acts.no_precedents")}</div>`);
       } catch (e) { mount($("#jResults"), html`<div class="card-b notice notice-red">${e.message}</div>`); }
     };

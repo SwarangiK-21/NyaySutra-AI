@@ -40,7 +40,7 @@ PERMISSIONS: dict[str, set[str]] = {
     "forum.edit": {"admin"},                       # forum requirements reach every lawyer's drafting prompt
     "directory.read": _WORKERS,                    # look up colleagues to add to a case
     "calendar.use": _WORKERS,                      # own hearings, deadlines and tasks with reminders
-    "library.import": _WORKERS,                    # add an official India Code act to the shared library
+    "library.import": {"admin"},                   # add an official India Code act to the shared library
     "users.manage": {"admin"},
     "settings.manage": {"admin"},
     "integrations.manage": {"admin"},

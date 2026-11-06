@@ -3,6 +3,7 @@
    records them). "Add to research library" downloads that act's official English text so Legal Research can search
    and cite it; nothing is summarised or invented here. */
 import { $, $$, api, html, mount, raw, spinner, store, toast } from "./core.js";
+import { safeUrl } from "./core.js";
 import { t } from "./i18n.js";
 import { can } from "./auth.js";
 
@@ -16,7 +17,7 @@ export async function catalogueView(box, r) {
   let page = 0;
   const opt = (s) => html`<option value="${s.name}" ${s.name === state ? raw("selected") : ""}>${s.name}${s.in_library ? ` (${t("acts.n_in_library", { n: s.in_library })})` : ""}</option>`;
   mount(box, html`<div class="card"><div class="card-h"><h2>${t("acts.catalogue_title")}</h2>
-      <a class="small" href="${j.source_url}" target="_blank" rel="noopener noreferrer">indiacode.gov.in ↗</a></div>
+      <a class="small" href="${safeUrl(j.source_url)}" target="_blank" rel="noopener noreferrer">indiacode.gov.in ↗</a></div>
     <form class="card-b row" id="catForm" style="align-items:flex-end">
       <div style="flex:1;min-width:220px"><label class="f" for="catState">${t("acts.jurisdiction")}</label>
         <select id="catState"><option value="Central" ${state === "Central" ? raw("selected") : ""}>${t("acts.central_acts")}${j.central.in_library ? ` (${t("acts.n_in_library", { n: j.central.in_library })})` : ""}</option>
@@ -41,7 +42,7 @@ export async function catalogueView(box, r) {
         <div class="r-title">${a.title}</div>
         <div class="r-meta">${a.act_number ? `${t("acts.act_no", { n: a.act_number })} · ` : ""}${a.year || "—"} · ${a.jurisdiction === "Central" ? t("research.central_law") : a.jurisdiction}
           ${a.repealed ? html` <span class="chip chip-warn">${t("acts.repealed_ic")}</span>` : ""}</div></div>
-        <div class="r-act"><a class="btn btn-ghost btn-sm" href="${a.item_url}" target="_blank" rel="noopener noreferrer">India Code ↗</a>
+        <div class="r-act"><a class="btn btn-ghost btn-sm" href="${safeUrl(a.item_url)}" target="_blank" rel="noopener noreferrer">India Code ↗</a>
           ${a.in_library ? html`<span class="chip ${a.in_library.status === "ready" ? "chip-ok" : "chip-wait"}">${a.in_library.status === "ready" ? `✓ ${t("acts.in_library_short")}` : t("acts.indexing")}</span>`
             : mayImport ? html`<button type="button" class="btn btn-sm" data-import="${a.uuid}">＋ ${t("acts.add_to_library")}</button>` : ""}</div></li>`)}</ul>
       ${res.pages > 1 ? html`<div class="card-b row"><button type="button" class="btn btn-ghost btn-sm" id="catPrev" ${res.page <= 0 ? raw("disabled") : ""}>‹ ${t("cal.prev")}</button>

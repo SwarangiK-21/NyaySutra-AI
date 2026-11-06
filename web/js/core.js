@@ -7,6 +7,8 @@ const RAW = Symbol("raw");
 const ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ESC[c]);
 export const raw = (s) => ({ [RAW]: String(s) });
+/** Links from fetched data: only http(s), same-site paths and in-page anchors (never javascript:, data:, //host). */
+export const safeUrl = (u) => /^(https?:\/\/|\/(?!\/)|#)/i.test(String(u ?? "")) ? String(u) : "#";
 const val = (v) => v == null || v === false ? "" : Array.isArray(v) ? v.map(val).join("")
   : typeof v === "object" && RAW in v ? v[RAW] : esc(v);
 export const html = (strings, ...vals) => raw(strings.reduce((o, s, i) => o + s + (i < vals.length ? val(vals[i]) : ""), ""));

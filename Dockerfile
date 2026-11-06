@@ -3,7 +3,8 @@
 #     docker build -t nyaysutra .
 # Secrets are NOT in the image: pass them at run time (docker compose env_file: .env, or the host's secret settings).
 # See docs/DEPLOYMENT.md.
-FROM python:3.14-slim
+# Pinned by digest (python:3.14-slim as of 2026-11-05) so every build uses the scanned base; refresh it monthly.
+FROM python:3.14-slim@sha256:af8a5aa14780025dbfbcfbc81bd8a91ebd87711dd5b0f48ed71090949dd7cb1d
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -14,8 +15,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     MODEL_CACHE=/opt/nyaysutra/models \
     HF_HUB_DISABLE_PROGRESS_BARS=1
 
-# libgomp1: OpenMP runtime used by ONNX Runtime (embeddings, re-ranker, OCR).
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 curl \
+# libgomp1: OpenMP runtime used by ONNX Runtime (embeddings, re-ranker, OCR). No curl: the health check uses Python.
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/nyaysutra/app
@@ -41,5 +42,5 @@ USER nyaya
 
 EXPOSE 8000
 HEALTHCHECK --interval=60s --timeout=10s --start-period=180s --retries=3 \
-    CMD curl -fsS http://127.0.0.1:8000/api/health || exit 1
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=8)"]
 CMD ["python", "run.py", "--no-browser"]

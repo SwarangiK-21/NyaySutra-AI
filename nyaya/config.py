@@ -192,6 +192,8 @@ MAX_UPLOAD_MB = int(_env("MAX_UPLOAD_MB", default="40"))
 MAX_REQUEST_MB = int(_env("MAX_REQUEST_MB", default="2"))   # any other request body (JSON forms, drafts)
 MAX_PDF_PAGES = int(_env("MAX_PDF_PAGES", default="2000"))
 CHAT_RATE_PER_MIN = int(_env("CHAT_RATE_PER_MIN", default="20"))
+# AI requests (chat, drafting, document summaries/translations, provision suggestions) per person per day; 0 = no cap.
+AI_DAILY_LIMIT = int(_env("AI_DAILY_LIMIT", default="200"))
 
 DISCLAIMER = (
     "AI-generated research aid, not legal advice. Verify every citation against "

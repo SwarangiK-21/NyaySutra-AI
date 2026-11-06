@@ -1,0 +1,3 @@
+# App + test tools (pip install -r requirements-dev.txt). The container image installs requirements.txt only.
+-r requirements.txt
+pytest==9.1.1

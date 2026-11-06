@@ -1,5 +1,6 @@
 /* Module 8 — potentially applicable acts / sections / articles for a case, with lawyer review (accept / reject / edit). */
 import { $, $$, aiConsent, api, html, mount, pollJob, progressBar, showDrawer, spinner, toast } from "./core.js";
+import { safeUrl } from "./core.js";
 import { t } from "./i18n.js";
 
 export async function provisionsPanel(el, c, reload) {
@@ -57,7 +58,7 @@ export async function provisionsPanel(el, c, reload) {
     try {
       const p = await api(`/api/library/provision?act=${encodeURIComponent(actName)}&ref=${encodeURIComponent(ref)}`);
       mount($("#drawerBody"), p.found ? html`<p class="small muted">${p.act_title} · p. ${p.page}${p.fetched_at ? ` · ${t("prov.fetched", { date: p.fetched_at.slice(0, 10) })}` : ""}</p><pre class="passage">${p.text}${p.truncated ? "\n…" : ""}</pre>
-        <div class="row"><a class="btn" href="${p.pdf_url}" target="_blank" rel="noopener">${t("acts.open_pdf")} ↗</a>${p.official_url ? html`<a class="btn btn-ghost" href="${p.official_url}" target="_blank" rel="noopener noreferrer">India Code ↗</a>` : ""}</div>`
+        <div class="row"><a class="btn" href="${safeUrl(p.pdf_url)}" target="_blank" rel="noopener">${t("acts.open_pdf")} ↗</a>${p.official_url ? html`<a class="btn btn-ghost" href="${safeUrl(p.official_url)}" target="_blank" rel="noopener noreferrer">India Code ↗</a>` : ""}</div>`
         : html`<div class="notice notice-red">${t("prov.not_found")}</div>`);
     } catch (e) { mount($("#drawerBody"), html`<div class="notice notice-red">${e.message}</div>`); }
   };

@@ -222,7 +222,7 @@ app.add_middleware(BodyLimit)
 @app.middleware("http")
 async def guard(request: Request, call_next):
     host = request.headers.get("host")
-    if not security.host_allowed(host):
+    if not security.host_allowed(host, client_ip(request)):
         return JSONResponse({"detail": "Host not allowed"}, status_code=400)
     path = request.url.path
     if path.startswith("/api/") and request.method not in SAFE_METHODS:
@@ -292,6 +292,23 @@ def rate(limit: int, bucket: str, window: float = 60.0):
         if not security.limiter.allow(f"{bucket}:{client_ip(request)}", limit, window):
             raise HTTPException(429, "Too many requests — please slow down.")
     return dep
+
+
+def ai_quota(p: Principal = P) -> None:
+    """Per-person daily cap on AI requests. Counted in the database, so unlike the per-IP limits above it survives a
+    restart and holds across instances; the counter key is not a preference users can write (PREF_KEYS)."""
+    if not p.user_id or config.AI_DAILY_LIMIT <= 0:
+        return
+    key = f"ai_calls:{date.today().isoformat()}"
+    used = int(db.user_prefs(p.user_id).get(key) or 0)
+    if used >= config.AI_DAILY_LIMIT:
+        raise HTTPException(429, f"Daily limit of {config.AI_DAILY_LIMIT} AI requests reached. It resets at midnight.")
+    with db.tx() as c:
+        c.execute("DELETE FROM user_prefs WHERE user_id=? AND key LIKE 'ai_calls:%' AND key<>?", (p.user_id, key))
+    db.set_user_pref(key, str(used + 1), p.user_id)
+
+
+AI = Depends(ai_quota)
 
 
 def need(perm: str):
@@ -1483,7 +1500,7 @@ class ChatIn(BaseModel):
         raise ValueError("Unknown state or Union Territory")
 
 
-@app.post("/api/chat", dependencies=[Depends(rate(config.CHAT_RATE_PER_MIN, "chat"))])
+@app.post("/api/chat", dependencies=[Depends(rate(config.CHAT_RATE_PER_MIN, "chat")), AI])
 def chat(body: ChatIn, p: Principal = Depends(need("research.use"))):
     # Deterministic authorization before the model sees anything: the case, the document and the chat must all
     # be the caller's to use. The agent never chooses them.
@@ -1592,7 +1609,7 @@ def document_versions(doc_id: str, p: Principal = P):
     return {"versions": ingest.versions(doc_id)}
 
 
-@app.post("/api/documents/{doc_id}/translate", dependencies=[Depends(rate(10, "docai"))])
+@app.post("/api/documents/{doc_id}/translate", dependencies=[Depends(rate(10, "docai")), AI])
 def document_translate(doc_id: str, body: ConsentIn, p: Principal = P):
     _doc_ai(p, doc_id)
     _need_consent(body)
@@ -1604,7 +1621,7 @@ def document_translate(doc_id: str, body: ConsentIn, p: Principal = P):
                        case_id=authz.document_case(doc_id)[1])
 
 
-@app.post("/api/documents/{doc_id}/summarize", dependencies=[Depends(rate(10, "docai"))])
+@app.post("/api/documents/{doc_id}/summarize", dependencies=[Depends(rate(10, "docai")), AI])
 def document_summarize(doc_id: str, body: ConsentIn, p: Principal = P):
     _doc_ai(p, doc_id)
     _need_consent(body)
@@ -1690,7 +1707,7 @@ def _require_draft(p: Principal, draft_id: str) -> dict:
     return dict(row)
 
 
-@app.post("/api/drafts/generate", dependencies=[Depends(rate(10, "draft"))])
+@app.post("/api/drafts/generate", dependencies=[Depends(rate(10, "draft")), AI])
 def draft_generate(body: DraftIn, p: Principal = Depends(need("drafting.use"))):
     args = body.model_dump(exclude={"consent", "save_style"})
     tasks.authorize_draft(p, args)   # same check the worker repeats before running
@@ -1794,7 +1811,7 @@ class ProvSuggestIn(BaseModel):
     doc_ids: list[str] | None = Field(None, max_length=20)
 
 
-@app.post("/api/cases/{case_id}/provisions/suggest", dependencies=[Depends(rate(10, "prov"))])
+@app.post("/api/cases/{case_id}/provisions/suggest", dependencies=[Depends(rate(10, "prov")), AI])
 def provisions_suggest(case_id: str, body: ProvSuggestIn, p: Principal = P):
     authz.require_case(p, case_id, "provisions")
     _need_consent(ConsentIn(consent=body.consent))
