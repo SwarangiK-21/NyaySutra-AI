@@ -7,6 +7,8 @@ const RAW = Symbol("raw");
 const ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ESC[c]);
 export const raw = (s) => ({ [RAW]: String(s) });
+/** Links from fetched data: only http(s), same-site paths and in-page anchors (never javascript:, data:, //host). */
+export const safeUrl = (u) => /^(https?:\/\/|\/(?!\/)|#)/i.test(String(u ?? "")) ? String(u) : "#";
 const val = (v) => v == null || v === false ? "" : Array.isArray(v) ? v.map(val).join("")
   : typeof v === "object" && RAW in v ? v[RAW] : esc(v);
 export const html = (strings, ...vals) => raw(strings.reduce((o, s, i) => o + s + (i < vals.length ? val(vals[i]) : ""), ""));
@@ -138,7 +140,7 @@ export function markdown(src) {
 
 // ── Page chrome ──
 export function crumbs(items) {
-  mount($("#crumbs"), html`<a href="#/dashboard">${t("nav.home")}</a>${items.map(([x, href]) => html` › ${href ? html`<a href="${href}">${x}</a>` : x}`)}`);
+  mount($("#crumbs"), html`<a href="#/ask">${t("nav.home")}</a>${items.map(([x, href]) => html` › ${href ? html`<a href="${href}">${x}</a>` : x}`)}`);
 }
 /** In-page tabs. `items` is [[key, label], …]; panels are elements with data-panel="key" inside the same root. */
 export const tabBar = (prefix, items, label = "") => html`<div class="tabs" role="tablist" aria-label="${label}">${items.map(([k, text]) =>
@@ -163,7 +165,7 @@ export function bindTabs(root, prefix, storeKey, initial) {
 export const tabPanel = (prefix, key, body) => html`<div role="tabpanel" id="${prefix}-panel-${key}" aria-labelledby="${prefix}-tab-${key}" tabindex="0" hidden>${body}</div>`;
 export function bindRowLinks(el) { $$("tr[data-href]", el).forEach((tr) => { tr.onclick = () => { location.hash = tr.dataset.href; }; }); }
 export function showDrawer(title) { if (title) $("#drawerTitle").textContent = title; const d = $("#drawer"); d.hidden = false; $("#drawerClose").focus(); }
-export function hideDrawer() { $("#drawer").hidden = true; }
+export function hideDrawer() { const d = $("#drawer"); d.hidden = true; d.classList.remove("wide"); }
 export const formData = (form) => Object.fromEntries([...new FormData(form).entries()].filter(([, v]) => typeof v === "string").map(([k, v]) => [k, v.trim()]));
 /** Show a server validation error next to its field (falls back to a toast). */
 export function fieldError(form, err) {

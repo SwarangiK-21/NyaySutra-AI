@@ -1,6 +1,7 @@
 /* Modules 6, 9, 11 — document-aware drafting studio, legal notices, court/forum customisation, editor and export. */
 import { $, $$, aiConsent, api, bindTabs, confirmDialog, crumbs, download, fmtDateTime, formData, html, markdown, mount, pollJob,
-  progressBar, raw, spinner, state, tabBar, tabPanel, toast } from "./core.js";
+  progressBar, raw, spinner, state, store, tabBar, tabPanel, toast } from "./core.js";
+import { safeUrl } from "./core.js";
 import { lang, t } from "./i18n.js";
 
 const ORIGIN_CLS = { file: "o-file", user: "o-user", case: "o-case" };
@@ -58,6 +59,8 @@ const recentList = (list) => list.length ? html`<ul class="list-plain">${list.sl
 
 function bindStudio({ kind }) {
   const form = $("#dForm");
+  const seed = store.get("draftSeed", null);   // "Draft from this" under an answer
+  if (seed) { $("#d_instr").value = seed; store.set("draftSeed", null); }
   const loadCaseDocs = async () => {
     const cid = $("#d_case").value;
     if (!cid) { mount($("#d_docs"), html`${t("drafting.choose_case_docs")}`); mount($("#d_base"), html`<option value="">—</option>`); return; }
@@ -106,18 +109,18 @@ function bindStudio({ kind }) {
 
 const provCard = (p) => p.found ? html`<div class="prov"><div><strong>${p.label}</strong> — ${p.act_title} <span class="chip chip-ok">${t("prov.verified")}</span></div>
   <div class="small muted">${p.heading.split(" — ").slice(1).join(" — ")}</div>
-  <div class="row small"><a href="${p.pdf_url}" target="_blank" rel="noopener">${t("acts.open_pdf")} (p. ${p.page}) ↗</a>${p.official_url ? html` · <a href="${p.official_url}" target="_blank" rel="noopener noreferrer">India Code ↗</a>` : ""}${p.fetched_at ? html` · <span class="muted">${t("prov.fetched", { date: p.fetched_at.slice(0, 10) })}</span>` : ""}</div>
+  <div class="row small"><a href="${safeUrl(p.pdf_url)}" target="_blank" rel="noopener">${t("acts.open_pdf")} (p. ${p.page}) ↗</a>${p.official_url ? html` · <a href="${safeUrl(p.official_url)}" target="_blank" rel="noopener noreferrer">India Code ↗</a>` : ""}${p.fetched_at ? html` · <span class="muted">${t("prov.fetched", { date: p.fetched_at.slice(0, 10) })}</span>` : ""}</div>
   <details><summary class="small">${t("prov.show_text")}</summary><pre class="passage">${p.text}</pre></details></div>`
   : html`<div class="prov"><strong>${p.ref}</strong> — ${p.act} <span class="chip chip-warn">${t("prov.not_found")}</span></div>`;
 
 function forumPanel(f) {
   return html`<div class="small"><strong>${f.name}</strong></div>
-    ${f.official.length ? html`<h3 class="mini">${t("forum.official")}</h3><ul class="small">${f.official.map((o) => html`<li><a href="${o.url}" target="_blank" rel="noopener noreferrer">${o.title} ↗</a> <span class="muted">(${t("lookup.checked", { date: o.verified_on })})</span></li>`)}</ul>` : ""}
+    ${f.official.length ? html`<h3 class="mini">${t("forum.official")}</h3><ul class="small">${f.official.map((o) => html`<li><a href="${safeUrl(o.url)}" target="_blank" rel="noopener noreferrer">${o.title} ↗</a> <span class="muted">(${t("lookup.checked", { date: o.verified_on })})</span></li>`)}</ul>` : ""}
     <h3 class="mini">${t("forum.requirements")}</h3>
     ${f.requirements.length ? f.requirements.map((r) => r.provision ? html`<div class="small" style="margin-bottom:6px">${r.text}: ${provCard(r.provision)}</div>`
-      : html`<div class="prov small">${r.text} <span class="chip">${t("forum.user_supplied")}</span> <a href="${r.url}" target="_blank" rel="noopener noreferrer">${t("forum.source")} ↗</a> <span class="muted">${r.verified_on}</span></div>`) : html`<div class="small muted">${t("forum.none")}</div>`}
+      : html`<div class="prov small">${r.text} <span class="chip">${t("forum.user_supplied")}</span> <a href="${safeUrl(r.url)}" target="_blank" rel="noopener noreferrer">${t("forum.source")} ↗</a> <span class="muted">${r.verified_on}</span></div>`) : html`<div class="small muted">${t("forum.none")}</div>`}
     ${f.confirm.map((c) => html`<div class="notice" style="margin-top:6px">⚠ ${c}</div>`)}
-    ${f.id !== "none" ? html`<details style="margin-top:8px"><summary class="small">${t("forum.add")}</summary><form id="reqForm" class="stack small" style="margin-top:6px">
+    ${f.id !== "none" && state.session?.permissions?.includes("forum.edit") ? html`<details style="margin-top:8px"><summary class="small">${t("forum.add")}</summary><form id="reqForm" class="stack small" style="margin-top:6px">
       <input type="text" name="text" placeholder="${t("forum.req_text")}" required aria-label="${t("forum.req_text")}">
       <input type="text" name="url" placeholder="https://… (${t("forum.official_url")})" required aria-label="${t("forum.official_url")}">
       <input type="date" name="verified_on" required aria-label="${t("forum.verified_on")}">
@@ -224,7 +227,7 @@ async function viewEditor(main, id) {
     ${tabPanel("ed", "confirm", html`<div class="card"><div class="card-b small">
           ${(d.inputs?.forum_confirm || []).map((c) => html`<div class="notice" style="margin-bottom:6px">⚠ ${c}</div>`)}
           ${(d.inputs?.formalities || []).map((c) => html`<div class="notice" style="margin-bottom:6px">⚖ ${c}</div>`)}
-          ${(d.inputs?.forum_official || []).map((o) => html`<div><a href="${o.url}" target="_blank" rel="noopener noreferrer">${o.title} ↗</a></div>`)}
+          ${(d.inputs?.forum_official || []).map((o) => html`<div><a href="${safeUrl(o.url)}" target="_blank" rel="noopener noreferrer">${o.title} ↗</a></div>`)}
           ${d.inputs?.template ? html`<div class="muted" style="margin-top:6px">${t("drafting.based_on", { title: d.inputs.template.title })}</div>` : ""}
           ${(d.inputs?.forum_confirm || []).length || (d.inputs?.formalities || []).length || (d.inputs?.forum_official || []).length || d.inputs?.template ? "" : html`<div class="empty">—</div>`}</div></div>`)}
     ${tabPanel("ed", "versions", html`<div class="card" style="max-width:760px"><div class="card-b"><ul class="list-plain small">${(d.versions || []).map((v) => html`<li>v${v.version} · ${t(`drafting.note_${v.note}`, {}, v.note)} · ${fmtDateTime(v.created_at)} <button type="button" class="btn btn-ghost btn-sm" data-ver="${v.version}">${t("drafting.load")}</button></li>`)}</ul></div></div>`)}

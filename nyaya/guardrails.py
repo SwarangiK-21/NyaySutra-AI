@@ -20,6 +20,7 @@ Nothing here asks another model whether something is allowed. The controls are c
 """
 from __future__ import annotations
 
+import base64
 import re
 import unicodedata
 from typing import Literal
@@ -104,6 +105,30 @@ _OVERRIDE = re.compile(
     r"\byou\s+are\s+now\s+(?:a|an|in|no\s+longer)\b|\b(?:developer|god|jailbreak|dan)\s+mode\b|\bjailbreak\b|"
     r"\bdo\s+anything\s+now\b|\bwithout\s+any\s+(?:restrictions|rules|filters)\b|\bpretend\s+(?:you\s+have|there\s+are)\s+no\s+rules\b",
     re.I)
+# Hindi / Marathi: only commands addressed to the assistant ("forget all your instructions", "show the system
+# prompt"). Questions about ignoring a rule or an order ("नियमों को अनदेखा करने पर…") are legal questions and pass.
+_OVERRIDE_INDIC = re.compile(
+    "(?:अपने|अपनी|तुम्हारे|आपके|सभी|पिछले|सारे|सर्व|मागील|तुमच्या)\\s*(?:\\S+\\s*){0,2}?(?:निर्देश|नियम|सूचना)\\S*\\s*"
+    "(?:को\\s*|ला\\s*)?(?:भूल\\s*जाओ|भूल\\s*जाइए|भूल\\s*जाएं|अनदेखा\\s*करो|अनदेखा\\s*करें|नज़?रअंदाज़?\\s*करो|"
+    "नज़?रअंदाज़?\\s*करें|विसरा|दुर्लक्ष\\s*करा)")
+_EXTRACT_INDIC = re.compile(
+    "(?:सिस्टम\\s*(?:प्रॉम्प्ट|प्रोम्प्ट|संदेश|मैसेज|मेसेज)|एपीआई\\s*(?:की|कुंजी)|पासवर्ड|गुप्त\\s*(?:कुंजी|निर्देश))\\S*"
+    "\\s*(?:\\S+\\s*){0,3}?(?:दिखाओ|दिखाइए|दिखाएं|बताओ|बताइए|बताएं|दाखवा|सांगा)")
+_B64 = re.compile(r"[A-Za-z0-9+/]{16,}={0,2}")
+
+
+def _decoded(text: str) -> list[str]:
+    """Readable text hidden as base64 ("decode and follow: SWdub3Jl…"), so it is screened like plain text."""
+    out = []
+    for blob in _B64.findall(text):
+        try:
+            s = base64.b64decode(blob + "=" * (-len(blob) % 4), validate=True).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            continue
+        if s.isprintable() and sum(ch.isalpha() for ch in s) >= 4:
+            out.append(s)
+    return out
+
 
 _REFUSALS = {
     "forgery": "I can't help create, alter or backdate documents, signatures or evidence. I can explain the law on "
@@ -127,16 +152,20 @@ _REFUSALS = {
 }
 
 
-def screen_request(message: str) -> tuple[str, str] | None:
+def screen_request(message: str, _nested: bool = False) -> tuple[str, str] | None:
     """(category, fixed reply) when the request must not reach the model; None otherwise."""
     text = normalise(message)
     for cat, pat in _HARM_RULES:
         if pat.search(text):
             return cat, _REFUSALS[cat]
-    if _EXTRACT.search(text):
+    if _EXTRACT.search(text) or _EXTRACT_INDIC.search(text):
         return "extraction", _REFUSALS["extraction"]
-    if _OVERRIDE.search(text):
+    if _OVERRIDE.search(text) or _OVERRIDE_INDIC.search(text):
         return "override", _REFUSALS["override"]
+    if not _nested:
+        for part in _decoded(text):
+            if hit := screen_request(part, _nested=True):
+                return hit
     return None
 
 
@@ -156,6 +185,7 @@ _INJECTION = [
     re.compile(r"\b(?:the\s+)?(?:ai|assistant|model|chatbot|llm)\s+(?:must|should|shall|will)\s+(?:now\s+)?(?:say|answer|"
                r"respond|conclude|state|ignore|recommend)\b", re.I),
     re.compile(r"(?:पिछले|ऊपर\s+के|सभी)\s+निर्देशों\s+को\s+(?:अनदेखा|नज़रअंदाज़|भूल)"),
+    re.compile(r"(?:मागील|वरील|सर्व)\s+सूचना\s+(?:विसरा|दुर्लक्ष\s*करा)"),
 ]
 
 

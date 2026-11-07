@@ -25,8 +25,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from . import (accounts, agent, authz, awareness, cases, casesearch, citations, config, db, docintel, drafting,
-               embeddings, events, export, filescan, indiacode, ingest, integrations, jobs, llm, mailer, ocr, privacy,
-               provisions, reference, retrieval, search, security, sessions, storage, tasks, tools)
+               embeddings, events, export, filescan, guardrails, indiacode, ingest, integrations, jobs, llm, mailer, ocr,
+               privacy, provisions, reference, retrieval, search, security, sessions, storage, tasks, tools)
 from . import supabase_auth as sb
 from .authz import Principal
 from .vectorindex import index
@@ -169,11 +169,67 @@ P = Depends(principal)
 SAFE_METHODS = ("GET", "HEAD", "OPTIONS")
 
 
+UPLOAD_PATH = re.compile(r"^/api/cases/[^/]+/documents$")
+
+
+class BodyLimit:
+    """Refuse oversized request bodies before any route reads them (which would hold JSON in memory or spool a
+    multipart upload to disk first): case uploads up to MAX_UPLOAD_MB plus 1 MB of form framing, anything else up
+    to MAX_REQUEST_MB. Checks the declared Content-Length and counts the bytes actually received, so a chunked
+    body without a length is stopped too."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["method"] in SAFE_METHODS:
+            return await self.app(scope, receive, send)
+        mb = config.MAX_UPLOAD_MB + 1 if UPLOAD_PATH.match(scope["path"]) else config.MAX_REQUEST_MB
+        limit = mb * 1024 * 1024
+        too_large = HTTPException(413, f"The request is larger than {mb} MB.")
+        declared = dict(scope["headers"]).get(b"content-length")
+        if declared is not None and (not declared.isdigit() or int(declared) > limit):
+            return await JSONResponse({"detail": too_large.detail}, status_code=413)(scope, receive, send)
+        received, started = 0, False
+
+        async def counted():
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > limit:
+                    raise too_large   # FastAPI re-raises HTTPException from body parsing: the route never runs
+            return message
+
+        async def tracked(message):
+            nonlocal started
+            started = started or message["type"] == "http.response.start"
+            await send(message)
+
+        try:
+            await self.app(scope, counted, tracked)
+        except HTTPException as exc:
+            if exc is not too_large or started:
+                raise
+            await JSONResponse({"detail": exc.detail}, status_code=413)(scope, receive, send)
+
+
+# Registered before guard, so it runs inside it: an error raised while the route reads the body then reaches FastAPI
+# directly (raised through guard's task group it would arrive wrapped, and FastAPI would answer 400).
+app.add_middleware(BodyLimit)
+
+
 @app.middleware("http")
 async def guard(request: Request, call_next):
     host = request.headers.get("host")
-    if not security.host_allowed(host):
+    if not security.host_allowed(host, client_ip(request)):
         return JSONResponse({"detail": "Host not allowed"}, status_code=400)
+    # Single-user mode without a password signs in whoever connects: fine on one computer, never through a proxy.
+    if not config.APP_PASSWORD and accounts.mode() == "local" and any(
+            h in request.headers for h in ("x-forwarded-for", "forwarded", "x-real-ip")):
+        return JSONResponse({"detail": "Single-user mode without APP_PASSWORD only serves this computer. Set "
+                             "APP_PASSWORD or configure Supabase accounts before putting it behind a proxy."},
+                            status_code=403)
     path = request.url.path
     if path.startswith("/api/") and request.method not in SAFE_METHODS:
         if not security.origin_allowed(request.headers.get("origin"), host):
@@ -242,6 +298,23 @@ def rate(limit: int, bucket: str, window: float = 60.0):
         if not security.limiter.allow(f"{bucket}:{client_ip(request)}", limit, window):
             raise HTTPException(429, "Too many requests — please slow down.")
     return dep
+
+
+def ai_quota(p: Principal = P) -> None:
+    """Per-person daily cap on AI requests. Counted in the database, so unlike the per-IP limits above it survives a
+    restart and holds across instances; the counter key is not a preference users can write (PREF_KEYS)."""
+    if not p.user_id or config.AI_DAILY_LIMIT <= 0:
+        return
+    key = f"ai_calls:{date.today().isoformat()}"
+    used = int(db.user_prefs(p.user_id).get(key) or 0)
+    if used >= config.AI_DAILY_LIMIT:
+        raise HTTPException(429, f"Daily limit of {config.AI_DAILY_LIMIT} AI requests reached. It resets at midnight.")
+    with db.tx() as c:
+        c.execute("DELETE FROM user_prefs WHERE user_id=? AND key LIKE 'ai_calls:%' AND key<>?", (p.user_id, key))
+    db.set_user_pref(key, str(used + 1), p.user_id)
+
+
+AI = Depends(ai_quota)
 
 
 def need(perm: str):
@@ -1433,7 +1506,7 @@ class ChatIn(BaseModel):
         raise ValueError("Unknown state or Union Territory")
 
 
-@app.post("/api/chat", dependencies=[Depends(rate(config.CHAT_RATE_PER_MIN, "chat"))])
+@app.post("/api/chat", dependencies=[Depends(rate(config.CHAT_RATE_PER_MIN, "chat")), AI])
 def chat(body: ChatIn, p: Principal = Depends(need("research.use"))):
     # Deterministic authorization before the model sees anything: the case, the document and the chat must all
     # be the caller's to use. The agent never chooses them.
@@ -1542,7 +1615,7 @@ def document_versions(doc_id: str, p: Principal = P):
     return {"versions": ingest.versions(doc_id)}
 
 
-@app.post("/api/documents/{doc_id}/translate", dependencies=[Depends(rate(10, "docai"))])
+@app.post("/api/documents/{doc_id}/translate", dependencies=[Depends(rate(10, "docai")), AI])
 def document_translate(doc_id: str, body: ConsentIn, p: Principal = P):
     _doc_ai(p, doc_id)
     _need_consent(body)
@@ -1554,7 +1627,7 @@ def document_translate(doc_id: str, body: ConsentIn, p: Principal = P):
                        case_id=authz.document_case(doc_id)[1])
 
 
-@app.post("/api/documents/{doc_id}/summarize", dependencies=[Depends(rate(10, "docai"))])
+@app.post("/api/documents/{doc_id}/summarize", dependencies=[Depends(rate(10, "docai")), AI])
 def document_summarize(doc_id: str, body: ConsentIn, p: Principal = P):
     _doc_ai(p, doc_id)
     _need_consent(body)
@@ -1602,6 +1675,9 @@ def add_forum_requirement(forum_id: str, body: ForumReqIn, p: Principal = Depend
         drafting.forum(forum_id)
     except ValueError as exc:
         raise HTTPException(404, str(exc))
+    if guardrails.is_suspicious(body.text):   # it would be shown to the model in every lawyer's drafts
+        db.audit("forum.requirement_add", "forum", forum_id, outcome="rejected", reason="instruction_like_text")
+        raise HTTPException(422, "This reads like an instruction to the AI, not a filing requirement.")
     items = drafting.user_requirements(forum_id) + [body.model_dump()]
     db.set_setting(f"forum_reqs:{forum_id}", json.dumps(items[-50:], ensure_ascii=False))
     db.audit("forum.requirement_add", "forum", forum_id, url=body.url)
@@ -1637,7 +1713,7 @@ def _require_draft(p: Principal, draft_id: str) -> dict:
     return dict(row)
 
 
-@app.post("/api/drafts/generate", dependencies=[Depends(rate(10, "draft"))])
+@app.post("/api/drafts/generate", dependencies=[Depends(rate(10, "draft")), AI])
 def draft_generate(body: DraftIn, p: Principal = Depends(need("drafting.use"))):
     args = body.model_dump(exclude={"consent", "save_style"})
     tasks.authorize_draft(p, args)   # same check the worker repeats before running
@@ -1741,7 +1817,7 @@ class ProvSuggestIn(BaseModel):
     doc_ids: list[str] | None = Field(None, max_length=20)
 
 
-@app.post("/api/cases/{case_id}/provisions/suggest", dependencies=[Depends(rate(10, "prov"))])
+@app.post("/api/cases/{case_id}/provisions/suggest", dependencies=[Depends(rate(10, "prov")), AI])
 def provisions_suggest(case_id: str, body: ProvSuggestIn, p: Principal = P):
     authz.require_case(p, case_id, "provisions")
     _need_consent(ConsentIn(consent=body.consent))
@@ -1830,6 +1906,27 @@ def judgment_fetch(body: JudgmentFetchIn, p: Principal = Depends(need("research.
         return {"status": "ready", "doc_id": doc["id"]}
     queued = judgments.queue_fetch([body.path])
     return {"status": "queued" if queued else (doc or {}).get("status", "queued")}
+
+
+@app.get("/api/library/act/{doc_id}")
+def library_act(doc_id: str, label: str | None = None, p: Principal = Depends(need("library.read"))):
+    """Reader for a bare act in the shared library: its contents, or the text of one provision."""
+    doc = db.conn().execute("SELECT id, title FROM documents WHERE id=? AND collection='bare_act' AND status='ready'",
+                            (doc_id,)).fetchone()
+    if not doc:
+        raise authz.NotFound("Act not found")
+    rows = db.conn().execute("SELECT label, title, chapter, text, page_start FROM chunks WHERE doc_id=? AND label IS NOT NULL "
+                             "ORDER BY ord", (doc_id,)).fetchall()
+    if label is None:
+        seen: dict[str, dict] = {}
+        for r in rows:
+            seen.setdefault(r["label"], {"label": r["label"], "title": r["title"], "chapter": r["chapter"]})
+        return {"title": doc["title"], "sections": list(seen.values())}
+    parts = [r for r in rows if r["label"] == label]
+    if not parts:
+        raise authz.NotFound("Provision not found")
+    return {"label": label, "title": parts[0]["title"], "page": parts[0]["page_start"],
+            "text": "\n".join(r["text"] for r in parts)}
 
 
 @app.get("/api/library/provision")

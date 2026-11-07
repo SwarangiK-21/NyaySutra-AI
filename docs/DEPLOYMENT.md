@@ -3,8 +3,10 @@
 This puts NyaySutra on a server with its own web address, HTTPS and an uptime alert. The database (Supabase,
 Mumbai) stays where it is; only the app moves off your laptop.
 
-> **Status:** the Docker files below are written and reviewed but have **not yet been built or run** (Docker is not
-> installed on the development machine). Expect to fix small issues the first time you build.
+> **Status:** the image is built, started and health-checked in CI on every push, on both x86 and ARM
+> (`.github/workflows/ci.yml`), and the Caddyfile was tested locally (HTTPS, HSTS, size limit, TLS versions).
+> **On Oracle Cloud Always Free, follow [DEPLOY_ORACLE.md](DEPLOY_ORACLE.md)** — a step-by-step version of this page
+> with a server setup script (`deploy/oracle/setup-server.sh`).
 
 ## 1. What you need
 
@@ -108,7 +110,12 @@ them; the app refuses to start against an older schema.
 |---|---|---|
 | `PUBLIC_URL` | `https://your-domain` | links in e-mails; marks session cookies Secure |
 | `ALLOWED_HOSTS` | `your-domain` | blocks requests for other host names |
+| `SIGNUP_MODE` | `invite_only` | only e-mail addresses an administrator invites get access; `open` lets anyone register as a Lawyer in your organisation |
+| `MAX_UPLOAD_MB` / `MAX_REQUEST_MB` | `40` / `2` (defaults) | larger case uploads / other request bodies are refused with 413 before they are read; keep Caddy's `max_size` above the upload limit |
 | `APP_HOST` | `0.0.0.0` (set by compose) | listen inside the container |
 | `TRUSTED_PROXY_IPS` | `*` (set by compose) | real client IPs for rate limits and the audit log |
 | `RETENTION_ENABLED` | `true` (default) | daily data-retention clean-up (docs/DATA_RETENTION.md) |
-| `WEB_SEARCH_ENABLED` | `true` (default) | note: the Ollama web-search allowance is limited; heavy use returns HTTP 429 until it resets or the plan is upgraded |
+| `WEB_SEARCH_ENABLED` | `true` (default) | `false` for local work that needs no web answers. The Ollama web-search allowance is limited; heavy use returns HTTP 429 until it resets or the plan is upgraded |
+| `WEB_SEARCH_DAILY_LIMIT` | `300` (default) | live web searches a day: a warning is logged at 80%, and they stop at 100% (cached results still work). 0 = no budget |
+| `WEB_SEARCH_PAUSE_MINUTES` | `30` (default) | live searches stop this long after a "limit reached" reply, unless the provider states a time |
+| `WEB_CACHE_HOURS` / `WEB_CACHE_FRESH_HOURS` | `24` / `1` (defaults) | how long a web result is reused; the second applies to news and other recent questions |

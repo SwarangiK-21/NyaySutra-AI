@@ -1,5 +1,6 @@
 /* Module 13 — unified search. Retrieval only: verified source material, with no AI text mixed in. */
 import { $, api, crumbs, fmtDate, html, mount, raw, reference, spinner } from "./core.js";
+import { safeUrl } from "./core.js";
 import { t } from "./i18n.js";
 
 const TYPES = ["case", "document", "bare_act", "judgment", "draft", "news", "awareness"];
@@ -40,6 +41,6 @@ export async function viewSearch(main, r) {
       <div class="row"><span class="badge b-${x.type}">${t(`stype.${x.type}`)}</span><h3 style="margin:0"><a href="${x.open || x.url}" ${x.external || /^\/api\//.test(x.url) && !x.open ? raw('target="_blank" rel="noopener noreferrer"') : ""}>${x.title}${x.label ? ` — ${x.label}` : ""}</a></h3></div>
       <div class="small muted">${t("search.source_lbl")}: ${x.source}${x.date ? ` · ${fmtDate(x.date)}` : ""}${x.jurisdiction ? ` · ${x.jurisdiction}` : ""}${x.page ? ` · p. ${x.page}` : ""}</div>
       ${x.snippet ? html`<p class="small" style="margin:4px 0 0">${x.snippet}</p>` : ""}
-      ${x.open && x.url ? html`<a class="small" href="${x.url}" target="_blank" rel="noopener">${t("case.original")} ↗</a>` : ""}</div>`)}</div>
+      ${x.open && x.url ? html`<a class="small" href="${safeUrl(x.url)}" target="_blank" rel="noopener">${t("case.original")} ↗</a>` : ""}</div>`)}</div>
       <p class="small muted">${t("search.note")}</p>` : html`<div class="empty">${t("search.none")}</div>`}`);
 }

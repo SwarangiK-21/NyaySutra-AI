@@ -100,12 +100,17 @@ def cookie_secure() -> bool:
     return config.PUBLIC_URL.startswith("https://")
 
 
-def host_allowed(host_header: str | None) -> bool:
+LOOPBACK = {"127.0.0.1", "localhost", "::1"}
+
+
+def host_allowed(host_header: str | None, client: str | None = None) -> bool:
+    """ALLOWED_HOSTS, plus a loopback name only from this machine itself (e.g. the container health check), so a
+    deployed site cannot be reached under 'localhost' from outside."""
     if not host_header:
         return False
     host = host_header.rsplit(":", 1)[0].strip("[]").lower() if not host_header.startswith("[") \
         else host_header.split("]")[0].strip("[").lower()
-    return host in {h.lower() for h in config.ALLOWED_HOSTS} or host in {"127.0.0.1", "localhost", "::1"}
+    return host in {h.lower() for h in config.ALLOWED_HOSTS} or (host in LOOPBACK and client in LOOPBACK)
 
 
 def origin_allowed(origin: str | None, host_header: str | None) -> bool:

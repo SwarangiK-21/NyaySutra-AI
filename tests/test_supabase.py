@@ -70,6 +70,17 @@ def test_migrations_cover_every_table():
     assert "public, false" not in sql and "revoke all on all tables in schema public from anon, authenticated" in sql
 
 
+def test_edits_outside_the_app_are_locked():
+    files = sorted((config.ROOT / "supabase" / "migrations").glob("*.sql"))
+    names = [p.name for p in files]
+    lock = names.index("20261102000011_lock_direct_edits.sql")
+    sql = files[lock].read_text("utf-8")
+    assert "session_user <> ''nyaya_app''" in sql and "select private.guard_all_tables();" in sql
+    for p in files[lock + 1:]:       # a table added later would otherwise be editable from the dashboard
+        later = p.read_text("utf-8").lower()
+        assert "create table" not in later or "private.guard_all_tables()" in later, p.name
+
+
 # ── Storage client (MOCKED Supabase Storage) ────────────────────────────────
 class FakeStorage:
     """In-memory stand-in for the Supabase Storage REST API (a mock, not the real service)."""

@@ -66,6 +66,7 @@ stray membership row existed.
 | Sessions | Auth: rotating refresh tokens, sign-out scopes, bans | Server-side sessions (only SHA-256 of the cookie stored), 12 h absolute + 60 min idle expiry, token rotation on every privilege change, list/revoke own sessions, revalidation with Supabase each access-token lifetime (revocation or ban at Supabase ends the app session) |
 | Token storage | Vault (encrypted at rest) | SECURITY DEFINER wrappers usable only in the system context |
 | Brute force | Auth: per-IP rate limits | Account lockout in Postgres (5 failures / 15 min per e-mail, across IPs and instances); per-IP limits on sign-in, sign-up, reset, MFA, chat, upload, export |
+| Oversized requests | — | Bodies above `MAX_UPLOAD_MB` + 1 MB (case uploads) or `MAX_REQUEST_MB` (everything else) are refused with 413 before any route reads them, whether the length is declared or streamed; Caddy caps bodies at 45 MB |
 | Authorization in the database | Postgres RLS + `auth.uid()` / `auth.jwt()` | Membership-based policies on all 27 tables; backend passes the caller as `request.jwt.claims` |
 | Security e-mails | Auth security notifications (enable in dashboard) | In-app security notifications: new device, MFA on/off, recovery code used, password changed/reset, role changed |
 | Encryption at rest / TLS | Supabase-managed disk encryption, TLS endpoints | `sslmode=require` enforced for Postgres; Secure cookies + HSTS when `PUBLIC_URL` is https |
@@ -83,6 +84,17 @@ stray membership row existed.
 * **Limit:** the system context is a claim set by backend code on a shared role. RLS therefore protects against
   missing checks in application code, not against an attacker who can run arbitrary SQL as `nyaya_app`. SQL injection
   is prevented by parameterised queries everywhere.
+* **Edits outside the app** (`supabase/migrations/20261102000011_lock_direct_edits.sql`): RLS does not bind the owner
+  role `postgres` used by the Table Editor and SQL Editor, so every table in `public` also refuses changes from any
+  session not logged in as `nyaya_app`. The app must therefore connect as `nyaya_app`.
+  * **Planned maintenance:** run the change in one transaction after `set local nyaya.maintenance = 'on';`. The lock
+    returns when the transaction ends, so migrations that change data need this line too.
+  * **Change log:** `select * from private.data_changes order by id desc;` lists changes that got through outside the
+    app, and disabled or dropped triggers: who, when, which row and columns, never the values. Refused edits are
+    undone, so they leave no row. Only the owner can read it, and it cannot be edited.
+  * **New tables:** the migration that creates one must end with `select private.guard_all_tables();`.
+  * **Limit:** the owner can remove the triggers, so this stops accidents and leaves a trail; it does not replace MFA on
+    the Supabase account. `auth.users` and Storage are outside it.
 
 ## 5. AI guardrails (`nyaya/guardrails.py`, `nyaya/privacy.py`)
 
@@ -92,6 +104,7 @@ stray membership row existed.
 | Harmful requests (forging documents/evidence, tampering, witness/judge intimidation or bribery, absconding, false complaints, hacking, violence) | `screen_request()` — refused before any model call, with lawful alternatives; questions about the law, rights and defences pass (tested both ways, English and Hindi) |
 | Direct prompt injection, system-prompt/secret extraction | `screen_request()` refuses override and extraction attempts; no secret is ever placed in a prompt |
 | Indirect prompt injection in documents | Detection at ingestion (`instruction_like_text`, shown to users) and on every retrieved passage (`injection_suspected`); each source wrapped in `<source>` delimiters the text cannot close; flagged passages carry a warning for the model |
+| Shared forum requirements (they reach every lawyer's drafts) | Only administrators may add them; text that reads like instructions is refused; in the drafting prompt they are delimited `<source kind="user_requirement">` data numbered U1, U2…, flagged when suspicious and never presented as verified |
 | Unauthorised tool use / cross-user data | The planner may only choose an allow-listed tool with schema-validated arguments; the case, documents and chat are authorised by the server before the agent runs and never come from model output; a tool the caller may not use is downgraded to research |
 | Fabricated citations | Every section/article/order reference and case citation in an answer must appear in the retrieved sources (or the user's question / case dossier); otherwise flagged and the answer marked not grounded — in addition to the model-based audit |
 | Leakage in output | `scan_output()` removes configured secrets, key/JWT/database-URL patterns and verbatim system-prompt text before the answer is stored; the UI replaces the streamed text |
