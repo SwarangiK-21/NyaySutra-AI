@@ -3,8 +3,10 @@
 This puts NyaySutra on a server with its own web address, HTTPS and an uptime alert. The database (Supabase,
 Mumbai) stays where it is; only the app moves off your laptop.
 
-> **Status:** the Docker files below are written and reviewed but have **not yet been built or run** (Docker is not
-> installed on the development machine). Expect to fix small issues the first time you build.
+> **Status:** the image is built, started and health-checked in CI on every push, on both x86 and ARM
+> (`.github/workflows/ci.yml`), and the Caddyfile was tested locally (HTTPS, HSTS, size limit, TLS versions).
+> **On Oracle Cloud Always Free, follow [DEPLOY_ORACLE.md](DEPLOY_ORACLE.md)** — a step-by-step version of this page
+> with a server setup script (`deploy/oracle/setup-server.sh`).
 
 ## 1. What you need
 
