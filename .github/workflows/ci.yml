@@ -83,3 +83,28 @@ jobs:
         run: |
           npm install -g snyk@1.1308.3
           snyk container test nyaysutra:ci --file=Dockerfile --fail-on=upgradable --severity-threshold=high
+
+  # Oracle Cloud's Always Free servers are ARM (Ampere A1): build and start the same image on a native ARM runner.
+  container-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image (linux/arm64)
+        run: docker build -t nyaysutra:arm64 .
+      - name: Start it and check /api/health
+        run: |
+          docker run -d --name app -p 8000:8000 \
+            -e AUTH_MODE=local -e APP_PASSWORD=ci-throwaway-only -e OLLAMA_API_KEY=ci-placeholder \
+            -e SYNC_ENABLED=false -e REMINDERS_ENABLED=false -e WEB_SEARCH_ENABLED=false \
+            nyaysutra:arm64
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8000/api/health; then echo; break; fi
+            sleep 3
+          done
+          curl -fsS http://localhost:8000/api/health
+          echo "architecture: $(docker exec app uname -m) · user: $(docker exec app id -un)"
+          test "$(docker exec app uname -m)" = "aarch64"
+      - name: Container logs
+        if: always()
+        run: docker logs app 2>&1 | tail -40 || true
