@@ -25,8 +25,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from . import (accounts, agent, authz, awareness, cases, casesearch, citations, config, db, docintel, drafting,
-               embeddings, events, export, filescan, indiacode, ingest, integrations, jobs, llm, mailer, ocr, privacy,
-               provisions, reference, retrieval, search, security, sessions, storage, tasks, tools)
+               embeddings, events, export, filescan, guardrails, indiacode, ingest, integrations, jobs, llm, mailer, ocr,
+               privacy, provisions, reference, retrieval, search, security, sessions, storage, tasks, tools, trash)
 from . import supabase_auth as sb
 from .authz import Principal
 from .vectorindex import index
@@ -169,11 +169,67 @@ P = Depends(principal)
 SAFE_METHODS = ("GET", "HEAD", "OPTIONS")
 
 
+UPLOAD_PATH = re.compile(r"^/api/cases/[^/]+/documents$")
+
+
+class BodyLimit:
+    """Refuse oversized request bodies before any route reads them (which would hold JSON in memory or spool a
+    multipart upload to disk first): case uploads up to MAX_UPLOAD_MB plus 1 MB of form framing, anything else up
+    to MAX_REQUEST_MB. Checks the declared Content-Length and counts the bytes actually received, so a chunked
+    body without a length is stopped too."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["method"] in SAFE_METHODS:
+            return await self.app(scope, receive, send)
+        mb = config.MAX_UPLOAD_MB + 1 if UPLOAD_PATH.match(scope["path"]) else config.MAX_REQUEST_MB
+        limit = mb * 1024 * 1024
+        too_large = HTTPException(413, f"The request is larger than {mb} MB.")
+        declared = dict(scope["headers"]).get(b"content-length")
+        if declared is not None and (not declared.isdigit() or int(declared) > limit):
+            return await JSONResponse({"detail": too_large.detail}, status_code=413)(scope, receive, send)
+        received, started = 0, False
+
+        async def counted():
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > limit:
+                    raise too_large   # FastAPI re-raises HTTPException from body parsing: the route never runs
+            return message
+
+        async def tracked(message):
+            nonlocal started
+            started = started or message["type"] == "http.response.start"
+            await send(message)
+
+        try:
+            await self.app(scope, counted, tracked)
+        except HTTPException as exc:
+            if exc is not too_large or started:
+                raise
+            await JSONResponse({"detail": exc.detail}, status_code=413)(scope, receive, send)
+
+
+# Registered before guard, so it runs inside it: an error raised while the route reads the body then reaches FastAPI
+# directly (raised through guard's task group it would arrive wrapped, and FastAPI would answer 400).
+app.add_middleware(BodyLimit)
+
+
 @app.middleware("http")
 async def guard(request: Request, call_next):
     host = request.headers.get("host")
-    if not security.host_allowed(host):
+    if not security.host_allowed(host, client_ip(request)):
         return JSONResponse({"detail": "Host not allowed"}, status_code=400)
+    # Single-user mode without a password signs in whoever connects: fine on one computer, never through a proxy.
+    if not config.APP_PASSWORD and accounts.mode() == "local" and any(
+            h in request.headers for h in ("x-forwarded-for", "forwarded", "x-real-ip")):
+        return JSONResponse({"detail": "Single-user mode without APP_PASSWORD only serves this computer. Set "
+                             "APP_PASSWORD or configure Supabase accounts before putting it behind a proxy."},
+                            status_code=403)
     path = request.url.path
     if path.startswith("/api/") and request.method not in SAFE_METHODS:
         if not security.origin_allowed(request.headers.get("origin"), host):
@@ -226,6 +282,11 @@ async def not_found(request: Request, exc: authz.NotFound):
     return JSONResponse({"detail": str(exc)}, status_code=404)
 
 
+@app.exception_handler(trash.TrashError)
+async def trash_error(request: Request, exc: trash.TrashError):
+    return JSONResponse({"detail": str(exc)}, status_code=409)
+
+
 @app.exception_handler(accounts.AccountError)
 async def account_error(request: Request, exc: accounts.AccountError):
     return JSONResponse({"detail": str(exc), "code": exc.code}, status_code=exc.status)
@@ -242,6 +303,23 @@ def rate(limit: int, bucket: str, window: float = 60.0):
         if not security.limiter.allow(f"{bucket}:{client_ip(request)}", limit, window):
             raise HTTPException(429, "Too many requests — please slow down.")
     return dep
+
+
+def ai_quota(p: Principal = P) -> None:
+    """Per-person daily cap on AI requests. Counted in the database, so unlike the per-IP limits above it survives a
+    restart and holds across instances; the counter key is not a preference users can write (PREF_KEYS)."""
+    if not p.user_id or config.AI_DAILY_LIMIT <= 0:
+        return
+    key = f"ai_calls:{date.today().isoformat()}"
+    used = int(db.user_prefs(p.user_id).get(key) or 0)
+    if used >= config.AI_DAILY_LIMIT:
+        raise HTTPException(429, f"Daily limit of {config.AI_DAILY_LIMIT} AI requests reached. It resets at midnight.")
+    with db.tx() as c:
+        c.execute("DELETE FROM user_prefs WHERE user_id=? AND key LIKE 'ai_calls:%' AND key<>?", (p.user_id, key))
+    db.set_user_pref(key, str(used + 1), p.user_id)
+
+
+AI = Depends(ai_quota)
 
 
 def need(perm: str):
@@ -871,10 +949,10 @@ def update_case(case_id: str, body: CaseIn, p: Principal = P):
 
 @app.delete("/api/cases/{case_id}")
 def delete_case(case_id: str, p: Principal = P):
+    """Moves the case (with its files, notes and drafts) to the Trash; see nyaya/trash.py."""
     authz.require_case(p, case_id, "case.delete")
-    if not cases.delete_case(case_id):
-        raise authz.NotFound("Case not found")
-    return {"ok": True}
+    trash.trash_case(p, case_id)
+    return {"ok": True, "trash": True}
 
 
 @app.post("/api/cases/{case_id}/notes")
@@ -963,7 +1041,7 @@ DOC_FIELDS = ("id, case_id, collection, doc_type, title, filename, pages, chars,
 
 @app.get("/api/documents")
 def list_documents(case_id: str | None = None, collection: str | None = None, p: Principal = P):
-    sql, args = f"SELECT {DOC_FIELDS} FROM documents WHERE 1=1", []
+    sql, args = f"SELECT {DOC_FIELDS} FROM documents WHERE status <> 'trashed'", []
     if case_id:
         authz.require_case(p, case_id, "documents.read")
         # Derived documents (English translations) are reached from their source document, not listed.
@@ -1220,10 +1298,9 @@ def document(doc_id: str, p: Principal = P):
 
 @app.delete("/api/documents/{doc_id}")
 def delete_document(doc_id: str, p: Principal = P):
-    collection, _ = authz.require_document(p, doc_id, "documents.delete")
-    ingest.delete_document(doc_id)
-    db.audit("document.delete", "document", doc_id)
-    return {"ok": True}
+    authz.require_document(p, doc_id, "documents.delete")
+    trash.trash_document(p, doc_id)   # restorable from the Trash; nyaya/trash.py
+    return {"ok": True, "trash": True}
 
 
 @app.get("/api/documents/{doc_id}/file")
@@ -1314,6 +1391,12 @@ def lookup(q: str = "", act: str | None = None, limit: int = 12, p: Principal = 
     if len(ids) < limit:
         ids += [i for i in retrieval.lexical(query, limit * 2, "library", None, doc_ids) if i not in ids]
     hits = [h for h in retrieval.load_hits(ids[:limit * 2]) if h.collection == "bare_act"][:limit]
+    # "section 138 negotiable": several acts have a section 138; put the ones whose title the question names first.
+    exact_ids = set(ids[:len(refs) * 6])
+    words = set(re.findall(r"[a-z]{4,}", q.lower())) - {"section", "sections", "article", "rule", "order", "under",
+                                                        "with", "what", "punishment", "code", "india", "indian"}
+    if words and not act:
+        hits.sort(key=lambda h: -(h.chunk_id in exact_ids) * (1 + sum(w in h.title.lower() for w in words)))
     return {"results": [{"chunk_id": h.chunk_id, "doc_id": h.doc_id, "title": h.title, "label": h.label,
                          "header": h.header, "text": h.text, "page": h.page_start, "exact": h.chunk_id in ids[:len(refs) * 6]}
                         for h in hits], "refs": [r.key for r in refs]}
@@ -1433,7 +1516,7 @@ class ChatIn(BaseModel):
         raise ValueError("Unknown state or Union Territory")
 
 
-@app.post("/api/chat", dependencies=[Depends(rate(config.CHAT_RATE_PER_MIN, "chat"))])
+@app.post("/api/chat", dependencies=[Depends(rate(config.CHAT_RATE_PER_MIN, "chat")), AI])
 def chat(body: ChatIn, p: Principal = Depends(need("research.use"))):
     # Deterministic authorization before the model sees anything: the case, the document and the chat must all
     # be the caller's to use. The agent never chooses them.
@@ -1542,7 +1625,7 @@ def document_versions(doc_id: str, p: Principal = P):
     return {"versions": ingest.versions(doc_id)}
 
 
-@app.post("/api/documents/{doc_id}/translate", dependencies=[Depends(rate(10, "docai"))])
+@app.post("/api/documents/{doc_id}/translate", dependencies=[Depends(rate(10, "docai")), AI])
 def document_translate(doc_id: str, body: ConsentIn, p: Principal = P):
     _doc_ai(p, doc_id)
     _need_consent(body)
@@ -1554,7 +1637,7 @@ def document_translate(doc_id: str, body: ConsentIn, p: Principal = P):
                        case_id=authz.document_case(doc_id)[1])
 
 
-@app.post("/api/documents/{doc_id}/summarize", dependencies=[Depends(rate(10, "docai"))])
+@app.post("/api/documents/{doc_id}/summarize", dependencies=[Depends(rate(10, "docai")), AI])
 def document_summarize(doc_id: str, body: ConsentIn, p: Principal = P):
     _doc_ai(p, doc_id)
     _need_consent(body)
@@ -1602,6 +1685,9 @@ def add_forum_requirement(forum_id: str, body: ForumReqIn, p: Principal = Depend
         drafting.forum(forum_id)
     except ValueError as exc:
         raise HTTPException(404, str(exc))
+    if guardrails.is_suspicious(body.text):   # it would be shown to the model in every lawyer's drafts
+        db.audit("forum.requirement_add", "forum", forum_id, outcome="rejected", reason="instruction_like_text")
+        raise HTTPException(422, "This reads like an instruction to the AI, not a filing requirement.")
     items = drafting.user_requirements(forum_id) + [body.model_dump()]
     db.set_setting(f"forum_reqs:{forum_id}", json.dumps(items[-50:], ensure_ascii=False))
     db.audit("forum.requirement_add", "forum", forum_id, url=body.url)
@@ -1629,7 +1715,8 @@ class DraftIn(BaseModel):
 def _require_draft(p: Principal, draft_id: str) -> dict:
     authz.require(p, "drafting.use")
     with db.system():
-        row = db.conn().execute("SELECT case_id, created_by FROM drafts WHERE id=?", (draft_id,)).fetchone()
+        row = db.conn().execute("SELECT case_id, created_by FROM drafts WHERE id=? AND deleted_at IS NULL",
+                                (draft_id,)).fetchone()
     ok = row and ((row["case_id"] and authz.can_case(p, row["case_id"], "drafts")) or
                   (not row["case_id"] and row["created_by"] == p.user_id))
     if not ok:
@@ -1637,7 +1724,7 @@ def _require_draft(p: Principal, draft_id: str) -> dict:
     return dict(row)
 
 
-@app.post("/api/drafts/generate", dependencies=[Depends(rate(10, "draft"))])
+@app.post("/api/drafts/generate", dependencies=[Depends(rate(10, "draft")), AI])
 def draft_generate(body: DraftIn, p: Principal = Depends(need("drafting.use"))):
     args = body.model_dump(exclude={"consent", "save_style"})
     tasks.authorize_draft(p, args)   # same check the worker repeats before running
@@ -1697,9 +1784,8 @@ def draft_version(draft_id: str, v: int, p: Principal = P):
 @app.delete("/api/drafts/{draft_id}")
 def draft_delete(draft_id: str, p: Principal = P):
     _require_draft(p, draft_id)
-    if not drafting.delete(draft_id):
-        raise authz.NotFound("Draft not found")
-    return {"ok": True}
+    trash.trash_draft(p, draft_id)   # restorable from the Trash; nyaya/trash.py
+    return {"ok": True, "trash": True}
 
 
 @app.get("/api/drafts/{draft_id}/export", dependencies=[Depends(rate(20, "export"))])
@@ -1741,7 +1827,7 @@ class ProvSuggestIn(BaseModel):
     doc_ids: list[str] | None = Field(None, max_length=20)
 
 
-@app.post("/api/cases/{case_id}/provisions/suggest", dependencies=[Depends(rate(10, "prov"))])
+@app.post("/api/cases/{case_id}/provisions/suggest", dependencies=[Depends(rate(10, "prov")), AI])
 def provisions_suggest(case_id: str, body: ProvSuggestIn, p: Principal = P):
     authz.require_case(p, case_id, "provisions")
     _need_consent(ConsentIn(consent=body.consent))
@@ -1830,6 +1916,27 @@ def judgment_fetch(body: JudgmentFetchIn, p: Principal = Depends(need("research.
         return {"status": "ready", "doc_id": doc["id"]}
     queued = judgments.queue_fetch([body.path])
     return {"status": "queued" if queued else (doc or {}).get("status", "queued")}
+
+
+@app.get("/api/library/act/{doc_id}")
+def library_act(doc_id: str, label: str | None = None, p: Principal = Depends(need("library.read"))):
+    """Reader for a bare act in the shared library: its contents, or the text of one provision."""
+    doc = db.conn().execute("SELECT id, title FROM documents WHERE id=? AND collection='bare_act' AND status='ready'",
+                            (doc_id,)).fetchone()
+    if not doc:
+        raise authz.NotFound("Act not found")
+    rows = db.conn().execute("SELECT label, title, chapter, text, page_start FROM chunks WHERE doc_id=? AND label IS NOT NULL "
+                             "ORDER BY ord", (doc_id,)).fetchall()
+    if label is None:
+        seen: dict[str, dict] = {}
+        for r in rows:
+            seen.setdefault(r["label"], {"label": r["label"], "title": r["title"], "chapter": r["chapter"]})
+        return {"title": doc["title"], "sections": list(seen.values())}
+    parts = [r for r in rows if r["label"] == label]
+    if not parts:
+        raise authz.NotFound("Provision not found")
+    return {"label": label, "title": parts[0]["title"], "page": parts[0]["page_start"],
+            "text": "\n".join(r["text"] for r in parts)}
 
 
 @app.get("/api/library/provision")
@@ -2035,8 +2142,33 @@ def calendar_update(event_id: str, body: EventIn, p: Principal = Depends(need("c
 
 @app.delete("/api/calendar/events/{event_id}")
 def calendar_delete(event_id: str, p: Principal = Depends(need("calendar.use"))):
-    events.delete(p, event_id[:40])
+    events.delete(p, event_id[:40])   # to the Trash
+    return {"ok": True, "trash": True}
+
+
+# ── Trash (recycle bin) ──────────────────────────────────────────────────────
+TrashKind = Literal["case", "document", "draft", "event"]
+
+
+@app.get("/api/trash")
+def trash_list(p: Principal = Depends(need("trash.use"))):
+    return {"items": trash.list_items(p), "days": config.TRASH_DAYS, "can_purge": p.can("trash.purge")}
+
+
+@app.post("/api/trash/{kind}/{item_id}/restore")
+def trash_restore(kind: TrashKind, item_id: str, p: Principal = Depends(need("trash.use"))):
+    return trash.restore(p, kind, item_id[:40])
+
+
+@app.delete("/api/trash/{kind}/{item_id}")
+def trash_purge(kind: TrashKind, item_id: str, p: Principal = Depends(need("trash.purge"))):
+    trash.purge(p, kind, item_id[:40])
     return {"ok": True}
+
+
+@app.post("/api/trash/empty")
+def trash_empty(p: Principal = Depends(need("trash.purge"))):
+    return {"ok": True, "deleted": trash.empty(p)}
 
 
 app.mount("/static", StaticFiles(directory=config.WEB_DIR), name="static")

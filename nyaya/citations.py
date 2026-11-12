@@ -48,8 +48,10 @@ _ALIAS_RE = re.compile(
 )
 
 _REF = re.compile(
-    r"\b(?:(?P<order>order)\s+(?P<ord>[ivxlc]+|\d{1,2})\s*,?\s*(?:rule|r\.?)\s*(?P<rule>\d{1,3}[a-z]?)"
-    r"|(?P<kind>sections?|secs?\.?|ss?\.|u/s\.?|under\s+section|articles?|arts?\.)\s*(?P<num>\d{1,3}[a-z]{0,3})"
+    # Hindi/Marathi: धारा / कलम = section, अनुच्छेद = article (\b does not work before Devanagari, hence the lookahead).
+    r"(?:\b|(?=धारा|कलम|अनुच्छेद))(?:(?P<order>order)\s+(?P<ord>[ivxlc]+|\d{1,2})\s*,?\s*(?:rule|r\.?)\s*(?P<rule>\d{1,3}[a-z]?)"
+    r"|(?P<kind>sections?|secs?\.?|ss?\.|u/s\.?|under\s+section|articles?|arts?\.|धारा|कलम|अनुच्छेद)\s*"
+    r"(?P<num>\d{1,3}[a-z]{0,3})"
     r"(?P<more>(?:\s*(?:\(\s*\w{1,4}\s*\))+)?(?:\s*(?:,|and|&|/|to)\s*\d{1,3}[a-z]{0,3}(?:\s*\(\s*\w{1,4}\s*\))*)*))",
     re.I,
 )
@@ -89,7 +91,7 @@ def parse_refs(text: str, after_window: int = 70) -> list[Ref]:
     refs: list[Ref] = []
     for m in _REF.finditer(text):
         near = _nearest_act(text, m.start(), m.end(), after_window)
-        is_article = bool(m.group("kind")) and m.group("kind").lower().startswith("art")
+        is_article = bool(m.group("kind")) and m.group("kind").lower().startswith(("art", "अनुच्छेद"))
         if near:
             act = near
         elif is_article:

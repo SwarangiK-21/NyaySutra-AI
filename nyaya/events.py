@@ -171,7 +171,8 @@ def _with_details(events: list[dict]) -> list[dict]:
 
 
 def get_own(p: authz.Principal, event_id: str) -> dict:
-    r = db.conn().execute("SELECT * FROM calendar_events WHERE id=? AND owner_id=?", (event_id, p.user_id)).fetchone()
+    r = db.conn().execute("SELECT * FROM calendar_events WHERE id=? AND owner_id=? AND deleted_at IS NULL",
+                          (event_id, p.user_id)).fetchone()
     if not r:
         raise authz.NotFound("Event not found")
     return _with_details([_row(r)])[0]
@@ -255,11 +256,9 @@ def update(p: authz.Principal, event_id: str, data: dict) -> dict:
 
 
 def delete(p: authz.Principal, event_id: str) -> None:
-    get_own(p, event_id)
-    with db.tx() as c:
-        c.execute("DELETE FROM event_reminders WHERE event_id=?", (event_id,))
-        c.execute("DELETE FROM calendar_events WHERE id=? AND owner_id=?", (event_id, p.user_id))
-    db.audit("calendar.delete", "event", event_id)
+    """Moves the entry to the Trash (restorable for config.TRASH_DAYS; see nyaya/trash.py)."""
+    from . import trash
+    trash.trash_event(p, event_id)
 
 
 def _case_hearings(p: authz.Principal, start: str, end: str, own: list[dict]) -> list[dict]:
@@ -284,7 +283,7 @@ def list_range(p: authz.Principal, start: str, end: str) -> list[dict]:
     if (date.fromisoformat(end) - date.fromisoformat(start)).days > 62:
         raise EventError("Ask for at most two months at a time.")
     own = _with_details([_row(r) for r in db.conn().execute(
-        "SELECT * FROM calendar_events WHERE owner_id=? AND event_date >= ? AND event_date <= ? "
+        "SELECT * FROM calendar_events WHERE owner_id=? AND deleted_at IS NULL AND event_date >= ? AND event_date <= ? "
         "ORDER BY event_date, COALESCE(event_time, '00:00')", (p.user_id, start, end))])
     items = own + _case_hearings(p, start, end, own)
     return sorted(items, key=lambda e: (e["event_date"], e.get("event_time") or "", e["title"]))
@@ -294,12 +293,14 @@ def upcoming(p: authz.Principal, tz: str | None = None, days: int = 30, limit: i
     today = datetime.now(zone(tz)).date()
     end = (today + timedelta(days=max(1, min(days, 366)))).isoformat()
     own = _with_details([_row(r) for r in db.conn().execute(
-        "SELECT * FROM calendar_events WHERE owner_id=? AND status='scheduled' AND event_date >= ? AND event_date <= ? "
+        "SELECT * FROM calendar_events WHERE owner_id=? AND status='scheduled' AND deleted_at IS NULL "
+        "AND event_date >= ? AND event_date <= ? "
         "ORDER BY event_date, COALESCE(event_time, '00:00') LIMIT ?", (p.user_id, today.isoformat(), end, limit))])
     items = own + _case_hearings(p, today.isoformat(), end, own)
     items.sort(key=lambda e: (e["event_date"], e.get("event_time") or "", e["title"]))
     overdue = db.conn().execute(
-        "SELECT COUNT(*) AS n FROM calendar_events WHERE owner_id=? AND status='scheduled' AND event_date < ?",
+        "SELECT COUNT(*) AS n FROM calendar_events WHERE owner_id=? AND status='scheduled' AND deleted_at IS NULL "
+        "AND event_date < ?",
         (p.user_id, today.isoformat())).fetchone()["n"]
     return {"items": items[:limit], "overdue": overdue, "today": today.isoformat()}
 
@@ -347,7 +348,7 @@ def _when(ev: dict) -> str:
 
 def _deliver(rem: dict) -> None:
     ev = db.conn().execute("SELECT * FROM calendar_events WHERE id=?", (rem["event_id"],)).fetchone()
-    if not ev or ev["status"] != "scheduled":
+    if not ev or ev["status"] != "scheduled" or ev["deleted_at"]:
         _finish(rem["id"], "skipped", "The entry was completed, cancelled or deleted.")
         return
     ev = dict(ev)

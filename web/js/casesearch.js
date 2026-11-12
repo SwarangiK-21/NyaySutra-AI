@@ -1,5 +1,6 @@
 /* Module 1 — Case information search: any combination of identifiers, honest source handling, manual import. */
 import { $, $$, api, crumbs, fieldError, fmtDateTime, formData, html, mount, raw, reference, spinner, toast } from "./core.js";
+import { safeUrl } from "./core.js";
 import { t } from "./i18n.js";
 
 export async function viewCaseSearch(main, r) {
@@ -78,8 +79,8 @@ function renderResults(res, query) {
         <div class="row"><strong>${s.name}</strong><span class="chip ${s.access === "manual" ? "chip-warn" : "chip-wait"}">${t(`access.${s.access}`, {}, s.access)}</span><span class="small muted">${t("lookup.search_by", { mode: FIELD(s.search_mode) })}</span></div>
         ${s.why_manual ? html`<div class="small muted">${s.why_manual}</div>` : ""}
         ${Object.keys(s.enter || {}).length ? html`<table class="gov compact" style="margin:8px 0"><tbody>${Object.entries(s.enter).map(([k, v]) => html`<tr><td>${FIELD(k)}</td><td>${v ? html`<code>${v}</code> <button type="button" class="btn btn-ghost btn-sm" data-copy="${v}">${t("common.copy")}</button>` : html`<span class="chip chip-warn">${t("lookup.missing")}</span>`}</td></tr>`)}</tbody></table>` : ""}
-        <div class="row">${s.url ? html`<a class="btn btn-saffron btn-sm" href="${s.url}" target="_blank" rel="noopener noreferrer">${t("lookup.open_official")} ↗</a>` : ""}
-          ${Object.entries(s.extra_links || {}).map(([lbl, u]) => html`<a class="btn btn-ghost btn-sm" href="${u}" target="_blank" rel="noopener noreferrer">${lbl} ↗</a>`)}
+        <div class="row">${s.url ? html`<a class="btn btn-saffron btn-sm" href="${safeUrl(s.url)}" target="_blank" rel="noopener noreferrer">${t("lookup.open_official")} ↗</a>` : ""}
+          ${Object.entries(s.extra_links || {}).map(([lbl, u]) => html`<a class="btn btn-ghost btn-sm" href="${safeUrl(u)}" target="_blank" rel="noopener noreferrer">${lbl} ↗</a>`)}
           ${s.source ? html`<button type="button" class="btn btn-ghost btn-sm" data-import="${s.source}">⬇ ${t("lookup.import")}</button>` : ""}</div>
         ${s.checked ? html`<div class="small muted">${t("lookup.checked", { date: s.checked })}</div>` : ""}</div>`)}
     </div></div>

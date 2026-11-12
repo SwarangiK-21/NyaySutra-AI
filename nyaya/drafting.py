@@ -188,9 +188,13 @@ def generate(*, doc_type_id: str, forum_id: str, style: str = "formal", lang: st
 
     progress(2, 4, "Writing the draft")
     reqs = [f"- {r['text']}: " + (f"{r['provision']['label']} of {r['provision']['act_title']} (verified in library)"
-                                  if r.get("status") == "verified_in_library" else
-                                  "user-supplied requirement" if r["source"] == "user" else "CONFIRM — not verified")
-            for r in fprof["requirements"]] + [f"- CONFIRM: {c}" for c in fprof.get("confirm", [])]
+                                  if r.get("status") == "verified_in_library" else "CONFIRM — not verified")
+            for r in fprof["requirements"] if r["source"] != "user"] + [f"- CONFIRM: {c}" for c in fprof.get("confirm", [])]
+    # Requirements typed in by the organisation are data, like any source: delimited, neutralised, flagged if they
+    # read like instructions, and numbered U1, U2… so they cannot be mistaken for the citable LAW sources [n].
+    reqs += [guardrails.wrap_source(f"U{i}", "user_requirement", f"Unverified requirement added by the organisation "
+                                    f"(source {r.get('url', '')}, checked {r.get('verified_on', '')})", r["text"])
+             for i, r in enumerate((r for r in fprof["requirements"] if r["source"] == "user"), 1)]
     facts_txt = "\n".join(f"{f['id']} [{f['origin']}: {f.get('ref', '')}] {f['text']}" for f in facts) or "(no facts supplied)"
     law_txt = "\n\n".join(guardrails.wrap_source(i, h.collection, f"[{i}] {h.header}"
                                                  f"{f' | p. {h.page_start}' if h.page_start else ''}", h.text[:2500])
@@ -294,7 +298,7 @@ def list_drafts(case_id: str | None = None, kind: str | None = None, *, user_id:
                 team_cases: list[str] | None = None) -> list[dict]:
     """The caller's own drafts plus the drafts of cases where they are on the case team."""
     sql, args = ("SELECT id, case_id, kind, doc_type, forum, style, lang, title, version, updated_at, review_status, "
-                 "approved_version FROM drafts WHERE 1=1"), []
+                 "approved_version FROM drafts WHERE deleted_at IS NULL"), []
     team = list(team_cases or [])
     sql += " AND ((case_id IS NULL AND created_by = ?)" + (f" OR case_id IN ({','.join('?' * len(team))})" if team else "") + ")"
     args += [user_id or "", *team]
@@ -355,6 +359,7 @@ def approval(d: dict) -> dict | None:
 
 
 def delete(draft_id: str) -> bool:
+    """Permanent delete (the app moves drafts to the Trash first: nyaya/trash.py)."""
     with db.tx() as c:
         ok = c.execute("DELETE FROM drafts WHERE id=?", (draft_id,)).rowcount > 0
     if ok:

@@ -142,11 +142,18 @@ def _font_paths() -> tuple[str | None, int, str | None, int]:
     nirmala = Path(r"C:\Windows\Fonts\Nirmala.ttc")
     if nirmala.exists():
         return str(nirmala), 0, str(nirmala), 1
-    for cand in ("/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
-                 "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"):
-        if Path(cand).exists():
-            return cand, 0, cand, 0
+    # Linux (Debian fonts-noto-core): Noto Sans for Latin text; Devanagari comes from the fallback font in to_pdf.
+    # NotoSansDevanagari alone has no Latin glyphs, so English text would vanish from the PDF.
+    if Path(NOTO + "NotoSans-Regular.ttf").exists():
+        return NOTO + "NotoSans-Regular.ttf", 0, NOTO + "NotoSans-Bold.ttf", 0
+    dejavu = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    if Path(dejavu).exists():
+        return dejavu, 0, dejavu, 0
     return None, 0, None, 0
+
+
+NOTO = "/usr/share/fonts/truetype/noto/"
+DEVANAGARI = (NOTO + "NotoSansDevanagari-Regular.ttf", NOTO + "NotoSansDevanagari-Bold.ttf")
 
 
 def to_pdf(title: str, content: str, sources: list[dict], approval: dict | None = None) -> bytes:
@@ -162,6 +169,10 @@ def to_pdf(title: str, content: str, sources: list[dict], approval: dict | None 
         kwb = {"collection_font_number": bi} if (bold or "").lower().endswith(".ttc") else {}
         pdf.add_font("Body", "B", bold, **kwb)
         family = "Body"
+        if reg.startswith(NOTO) and Path(DEVANAGARI[0]).exists():
+            pdf.add_font("Deva", "", DEVANAGARI[0])
+            pdf.add_font("Deva", "B", DEVANAGARI[1] if Path(DEVANAGARI[1]).exists() else DEVANAGARI[0])
+            pdf.set_fallback_fonts(["Deva"])
         pdf.set_text_shaping(True)
     else:  # no Unicode font available: core font (Latin only)
         family = "Helvetica"

@@ -557,6 +557,17 @@ MIGRATIONS: list[str] = [
     CREATE INDEX IF NOT EXISTS ix_profiles_last_active ON profiles(last_active_at);
     CREATE INDEX IF NOT EXISTS ix_chats_updated ON chats(updated_at);
     """,
+    # 6 — Trash: deleted items are kept for TRASH_DAYS and can be restored (mirrors supabase/migrations/…13)
+    """
+    ALTER TABLE cases ADD COLUMN deleted_at TEXT;
+    ALTER TABLE cases ADD COLUMN deleted_by TEXT;
+    ALTER TABLE documents ADD COLUMN deleted_at TEXT;
+    ALTER TABLE documents ADD COLUMN deleted_by TEXT;
+    ALTER TABLE drafts ADD COLUMN deleted_at TEXT;
+    ALTER TABLE drafts ADD COLUMN deleted_by TEXT;
+    ALTER TABLE calendar_events ADD COLUMN deleted_at TEXT;
+    ALTER TABLE calendar_events ADD COLUMN deleted_by TEXT;
+    """,
 ]
 
 _local = threading.local()
@@ -566,7 +577,7 @@ write_lock = threading.RLock()
 
 # Postgres schema version this code expects (supabase/migrations/*). The app never runs DDL against Postgres:
 # migrations are applied by the project owner (Supabase CLI / dashboard / MCP), and the app checks the version.
-PG_SCHEMA_VERSION = 7
+PG_SCHEMA_VERSION = 8
 DEFAULT_ORG = "org_default"
 
 

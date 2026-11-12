@@ -152,6 +152,9 @@ def _raise_for(r: httpx.Response) -> None:
     log.warning("Ollama error %s: %s", r.status_code, detail[:200])
     if r.status_code in (401, 403):
         raise LLMError("The Ollama API key was rejected. Check OLLAMA_API_KEY in .env.")
+    if r.status_code == 402:
+        raise LLMError("The AI service needs a paid plan or usage credits on the Ollama account (ollama.com/plans). "
+                       "Ask the administrator; library search and case files still work.")
     if r.status_code == 404 or "not found" in detail.lower():
         raise LLMError(f"Model not available on your Ollama plan: {detail[:120]}", fallback_ok=True)
     if r.status_code == 429 or "limit" in detail.lower():

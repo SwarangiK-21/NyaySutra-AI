@@ -486,6 +486,8 @@ def recovery_codes_left(user_id: str) -> int:
 
 
 def mfa_enroll_finish(row: dict, factor_id: str, code: str, ip: str, ua: str) -> tuple[str, dict, list[str]]:
+    if row["state"] not in ("active", "mfa_enroll"):   # same rule as mfa_enroll_start
+        raise AccountError("Sign in first.", 401)
     code = re.sub(r"\s", "", code or "")
     if not re.fullmatch(r"\d{6}", code) or not re.fullmatch(r"[\w-]{8,64}", factor_id or ""):
         raise AccountError("Enter the 6-digit code from your authenticator app.", 400, "invalid_code")

@@ -161,6 +161,10 @@ TIME_CHECK_URL = _env("TIME_CHECK_URL", default="https://ollama.com" if OLLAMA_A
 WEB_SEARCH_ENABLED = _bool("WEB_SEARCH_ENABLED", bool(OLLAMA_API_KEY))
 WEB_SEARCH_URL = _env("WEB_SEARCH_URL", default="https://ollama.com/api/web_search")
 WEB_SEARCH_TIMEOUT = float(_env("WEB_SEARCH_TIMEOUT", default="20"))
+WEB_CACHE_HOURS = float(_env("WEB_CACHE_HOURS", default="24"))              # how long a web result is reused
+WEB_CACHE_FRESH_HOURS = float(_env("WEB_CACHE_FRESH_HOURS", default="1"))   # the same, for news and recent questions
+WEB_SEARCH_DAILY_LIMIT = int(_env("WEB_SEARCH_DAILY_LIMIT", default="300"))  # live searches a day; 0 = no budget
+WEB_SEARCH_PAUSE_MINUTES = int(_env("WEB_SEARCH_PAUSE_MINUTES", default="30"))  # after "limit reached" (HTTP 429)
 
 # Data retention (docs/DATA_RETENTION.md). Defaults: the project owner's "keep data longer" choice. 0 = keep forever.
 RETENTION_ENABLED = _bool("RETENTION_ENABLED", True)              # the daily clean-up job
@@ -170,6 +174,7 @@ RETENTION_INACTIVE_MONTHS = int(_env("RETENTION_INACTIVE_MONTHS", default="36"))
 RETENTION_WARN_MONTHS = int(_env("RETENTION_WARN_MONTHS", default="33"))           # warning sent after
 RETENTION_AUDIT_YEARS = int(_env("RETENTION_AUDIT_YEARS", default="5"))
 RETENTION_TICK_HOURS = float(_env("RETENTION_TICK_HOURS", default="24"))
+TRASH_DAYS = max(1, int(_env("TRASH_DAYS", default="30")))   # deleted items can be restored this long (nyaya/trash.py)
 
 # Supreme Court judgments (open dataset): every judgment is in the catalogue; full texts are fetched on demand and at
 # most this many are kept (least recently used removed first), which keeps the database inside the 500 MB free tier.
@@ -185,8 +190,11 @@ ALLOWED_HOSTS = [h.strip() for h in _env("ALLOWED_HOSTS", default="127.0.0.1,loc
 # app port is not published): then the client IP and https are read from the proxy's X-Forwarded-* headers.
 TRUSTED_PROXY_IPS = _env("TRUSTED_PROXY_IPS")
 MAX_UPLOAD_MB = int(_env("MAX_UPLOAD_MB", default="40"))
+MAX_REQUEST_MB = int(_env("MAX_REQUEST_MB", default="2"))   # any other request body (JSON forms, drafts)
 MAX_PDF_PAGES = int(_env("MAX_PDF_PAGES", default="2000"))
 CHAT_RATE_PER_MIN = int(_env("CHAT_RATE_PER_MIN", default="20"))
+# AI requests (chat, drafting, document summaries/translations, provision suggestions) per person per day; 0 = no cap.
+AI_DAILY_LIMIT = int(_env("AI_DAILY_LIMIT", default="200"))
 
 DISCLAIMER = (
     "AI-generated research aid, not legal advice. Verify every citation against "

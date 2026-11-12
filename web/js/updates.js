@@ -1,5 +1,6 @@
 /* Modules 2 & 12 — notifications, integration status (periodic vs manual — never a fabricated "live"), news, activity log. */
 import { $, $$, api, crumbs, fmtDateTime, html, mount, num, spinner, toast } from "./core.js";
+import { safeUrl } from "./core.js";
 import { t } from "./i18n.js";
 import { can } from "./auth.js";
 import { desktopAlerts } from "./calendar.js";
@@ -31,7 +32,7 @@ export async function viewUpdates(main, r) {
 async function notifications(el) {
   const { items } = await api("/api/notifications?limit=100");
   mount(el, html`<div class="card"><div class="card-h"><h2>${t("updates.tab_notifications")}</h2><button class="btn btn-ghost btn-sm" id="readAll">${t("updates.mark_read")}</button></div>
-    ${items.length ? html`<ul class="list-plain card-b">${items.map((n) => html`<li class="${n.read_at ? "" : "unread"}"><span class="chip">${t(`kind.${n.kind}`, {}, n.kind)}</span> ${n.link ? html`<a href="${n.link}">${n.title}</a>` : html`<strong>${n.title}</strong>`}
+    ${items.length ? html`<ul class="list-plain card-b">${items.map((n) => html`<li class="${n.read_at ? "" : "unread"}"><span class="chip">${t(`kind.${n.kind}`, {}, n.kind)}</span> ${n.link ? html`<a href="${safeUrl(n.link)}">${n.title}</a>` : html`<strong>${n.title}</strong>`}
       ${n.body ? html`<div class="small">${n.body}</div>` : ""}<div class="small muted">${fmtDateTime(n.created_at)}</div></li>`)}</ul>` : html`<div class="empty">${t("updates.none")}</div>`}</div>`);
   $("#readAll").onclick = async () => { await api("/api/notifications/read", { method: "POST" }); refreshBell(); notifications(el); };
 }
@@ -75,7 +76,7 @@ async function sources(el) {
 async function news(el, q) {
   const { items } = await api(`/api/news?limit=100&q=${encodeURIComponent(q)}`);
   mount(el, html`<form class="row" id="newsForm" style="margin-bottom:10px"><input type="search" id="nq" value="${q}" placeholder="${t("news.filter")}" aria-label="${t("news.filter")}" style="max-width:360px"><button class="btn btn-sm">${t("common.search")}</button></form>
-    <div class="card">${items.length ? html`<ul class="list-plain card-b">${items.map((n) => html`<li><a href="${n.url}" target="_blank" rel="noopener noreferrer">${n.title} ↗</a>
+    <div class="card">${items.length ? html`<ul class="list-plain card-b">${items.map((n) => html`<li><a href="${safeUrl(n.url)}" target="_blank" rel="noopener noreferrer">${n.title} ↗</a>
       <div class="small muted">${n.source} · ${fmtDateTime(n.published_at)} · ${t("news.retrieved", { when: fmtDateTime(n.retrieved_at) })}${(n.data?.categories || []).length ? ` · ${n.data.categories.join(", ")}` : ""}</div></li>`)}</ul>`
       : html`<div class="empty">${t("news.none")}</div>`}</div><p class="small muted">${t("news.note")}</p>`);
   $("#newsForm").onsubmit = (e) => { e.preventDefault(); location.hash = `#/updates?tab=news&q=${encodeURIComponent($("#nq").value.trim())}`; };

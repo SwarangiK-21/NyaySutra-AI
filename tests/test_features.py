@@ -471,7 +471,7 @@ def test_permissions_headers_and_audit(client):
     acts = [a["action"] for a in client.get("/api/audit").json()["items"]]
     assert "case.create" in acts
     client.delete(f"/api/cases/{c['id']}")
-    assert client.get("/api/audit").json()["items"][0]["action"] == "case.delete"
+    assert client.get("/api/audit").json()["items"][0]["action"] == "case.trash"
 
 
 def test_retention_purges_old_chats(fresh_db):

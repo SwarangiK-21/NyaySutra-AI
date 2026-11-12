@@ -14,7 +14,10 @@ What the job does, as internal system work, once a day:
   * audit-log entries older than RETENTION_AUDIT_YEARS                                -> deleted
   * operational records: expired sign-in sessions (30 days), finished background jobs (90 days), notifications
     (read: 12 months, any: 24 months), integration sync log (12 months), sign-in throttle entries (30 days)
-Deleting a case, document, chat or search in the app removes it immediately (there is no recycle bin).
+  * items in the Trash (cases, case documents, drafts, calendar entries) for longer than TRASH_DAYS (30) -> deleted
+    for good, files included (nyaya/trash.py)
+Deleting a case, document, draft or calendar entry in the app moves it to the Trash; deleting a chat or a search
+removes it immediately.
 """
 from __future__ import annotations
 
@@ -49,7 +52,10 @@ def policy() -> list[dict]:
         {"data": "Your account and personal workspace", "kept": period(config.RETENTION_INACTIVE_MONTHS),
          "from": f"your last sign-in (you are warned after {config.RETENTION_WARN_MONTHS} months)"},
         {"data": "Cases, case documents and drafts", "kept": "until you or your administrator delete them",
-         "from": "deleted immediately when you delete them; deleted with an inactive account that is their only member"},
+         "from": "deleted with an inactive account that is their only member"},
+        {"data": "Deleted cases, documents, drafts and calendar entries (the Trash)",
+         "kept": f"{config.TRASH_DAYS} days, then deleted for good", "from": "when you deleted them; an administrator "
+         "can delete them for good sooner"},
         {"data": "Security audit log (who did what, never document contents)",
          "kept": f"{config.RETENTION_AUDIT_YEARS} years" if config.RETENTION_AUDIT_YEARS > 0 else "kept",
          "from": "the event"},
@@ -124,6 +130,8 @@ def run(now: datetime | None = None, dry_run: bool = False) -> dict:
         if config.RETENTION_SEARCH_MONTHS > 0:
             res["search_history"] = _delete("DELETE FROM search_history WHERE created_at < ?",
                                             (_before(_months(config.RETENTION_SEARCH_MONTHS), now),), dry_run)
+        from . import trash
+        res["trash"] = trash.purge_expired(now, dry_run)
         res["sessions"] = _delete("DELETE FROM app_sessions WHERE expires_at < ? OR revoked_at < ?",
                                   (_before(timedelta(days=30), now),) * 2, dry_run)
         res["jobs"] = _delete("DELETE FROM jobs WHERE status IN ('completed','partial','failed','cancelled','dead') AND "

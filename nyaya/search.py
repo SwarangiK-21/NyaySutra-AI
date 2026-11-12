@@ -92,7 +92,7 @@ def search(q: str, *, types: set[str] | None = None, court: str = "", state: str
 
     if "draft" in types:
         own = "(case_id IS NULL AND created_by = ?)" + (f" OR case_id IN ({','.join('?' * len(team))})" if team else "")
-        for d in db.conn().execute(f"SELECT id, title, kind, doc_type, forum, updated_at, content FROM drafts WHERE ({own}) "
+        for d in db.conn().execute(f"SELECT id, title, kind, doc_type, forum, updated_at, content FROM drafts WHERE ({own}) AND deleted_at IS NULL "
                                    "AND (title LIKE ? OR content LIKE ?) ORDER BY updated_at DESC LIMIT 15",
                                    (principal.user_id, *team, like, like)):
             results.append({"type": "draft", "title": d["title"], "source": f"Your {d['kind']} (AI-assisted draft)",
