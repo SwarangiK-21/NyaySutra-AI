@@ -186,10 +186,12 @@ def add_note(case_id: str, content: str, author: str = "Advocate") -> dict | Non
     content = content.strip()[:4000]
     if not content or not get_case(case_id):
         return None
+    note_id = db.new_id("note_")
     with db.tx() as c:
         c.execute("INSERT INTO case_notes(id, case_id, author, content, created_at) VALUES(?,?,?,?,?)",
-                  (db.new_id("note_"), case_id, (author or "Advocate").strip()[:80], content, db.now()))
+                  (note_id, case_id, (author or "Advocate").strip()[:80], content, db.now()))
         c.execute("UPDATE cases SET updated_at=? WHERE id=?", (db.now(), case_id))
+    db.audit("case.note_add", "case", case_id, note=note_id)   # never the note's text
     return get_case(case_id)
 
 

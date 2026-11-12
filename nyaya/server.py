@@ -1387,6 +1387,12 @@ def lookup(q: str = "", act: str | None = None, limit: int = 12, p: Principal = 
     if len(ids) < limit:
         ids += [i for i in retrieval.lexical(query, limit * 2, "library", None, doc_ids) if i not in ids]
     hits = [h for h in retrieval.load_hits(ids[:limit * 2]) if h.collection == "bare_act"][:limit]
+    # "section 138 negotiable": several acts have a section 138; put the ones whose title the question names first.
+    exact_ids = set(ids[:len(refs) * 6])
+    words = set(re.findall(r"[a-z]{4,}", q.lower())) - {"section", "sections", "article", "rule", "order", "under",
+                                                        "with", "what", "punishment", "code", "india", "indian"}
+    if words and not act:
+        hits.sort(key=lambda h: -(h.chunk_id in exact_ids) * (1 + sum(w in h.title.lower() for w in words)))
     return {"results": [{"chunk_id": h.chunk_id, "doc_id": h.doc_id, "title": h.title, "label": h.label,
                          "header": h.header, "text": h.text, "page": h.page_start, "exact": h.chunk_id in ids[:len(refs) * 6]}
                         for h in hits], "refs": [r.key for r in refs]}

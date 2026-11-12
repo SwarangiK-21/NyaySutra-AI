@@ -1,0 +1,41 @@
+# Keeps the free Supabase project from being paused after ~7 days without activity, even when the app is not running.
+# Every 3 days it calls the read-only public.keepalive() database function through Supabase's REST API.
+#
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_URL              e.g. https://<project-ref>.supabase.co
+#   SUPABASE_PUBLISHABLE_KEY  the publishable (anon) key — never the secret/service key
+# Scheduled runs happen only on the default branch, and GitHub turns schedules off after 60 days without commits;
+# it e-mails the owner before that. "Run workflow" on the Actions tab runs it by hand.
+name: Supabase keep-alive
+
+on:
+  schedule:
+    - cron: "17 3 */3 * *"   # 03:17 UTC every third day
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - name: Call public.keepalive()
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::error::Set the SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY repository secrets."
+            exit 1
+          fi
+          for attempt in 1 2 3; do
+            body=$(curl -sS --max-time 30 -X POST "${SUPABASE_URL%/}/rest/v1/rpc/keepalive" \
+              -H "apikey: $SUPABASE_PUBLISHABLE_KEY" -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
+              -H "Content-Type: application/json" -d '{}' -w ' HTTP %{http_code}') || body="curl failed"
+            echo "attempt $attempt: $body"
+            case "$body" in "true HTTP 200") exit 0 ;; esac
+            sleep 20
+          done
+          echo "::error::Supabase did not answer the keep-alive. If it says the project is paused, restore it in the dashboard."
+          exit 1

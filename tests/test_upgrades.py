@@ -517,3 +517,31 @@ def test_mfa_enrolment_cannot_be_finished_from_a_half_signed_in_session():
         with pytest.raises(accounts.AccountError) as exc:
             accounts.mfa_enroll_finish({"state": state, "user_id": "u1"}, "factor-123456", "123456", "", "")
         assert exc.value.status == 401
+
+
+def test_ollama_402_explains_that_credits_or_a_plan_are_needed():
+    import httpx as _httpx
+    from nyaya import llm
+    r = _httpx.Response(402, json={"error": "Add usage credits or subscribe"})
+    with pytest.raises(llm.LLMError) as exc:
+        llm._raise_for(r)
+    assert "paid plan or usage credits" in str(exc.value) and not exc.value.transient
+
+
+def test_keepalive_migration_touches_no_tables_and_only_grants_execute():
+    from pathlib import Path
+    sql = (Path(__file__).parents[1] / "supabase/migrations/20261110000012_keepalive.sql").read_text("utf-8")
+    body = sql.split("$$")[1]
+    assert body.strip() == "select true"
+    assert "revoke all on function public.keepalive() from public" in sql
+    assert "service_role" not in sql and "security definer" not in sql.lower()
+
+
+def test_section_references_in_hindi_and_marathi_are_recognised():
+    from nyaya import citations
+    keys = lambda t: [r.key for r in citations.parse_refs(t)]   # noqa: E731
+    assert keys("धारा 498A में क्या सज़ा है?") == ["S498A"]
+    assert keys("कलम 138 अंतर्गत शिक्षा काय आहे?") == ["S138"]
+    assert keys("अनुच्छेद 21 क्या कहता है?") == ["A21"]
+    assert keys("Section 138 of the Negotiable Instruments Act") == ["S138"]
+    assert keys("subsection 5 is unrelated") == []
