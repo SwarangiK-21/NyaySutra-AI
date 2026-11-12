@@ -17,7 +17,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # libgomp1: OpenMP runtime used by ONNX Runtime (embeddings, re-ranker, OCR). fonts-noto-core: Latin + Devanagari
 # for PDF export (Hindi/Marathi drafts). No curl: the health check uses Python.
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 fonts-noto-core \
+# `upgrade` applies Debian security fixes released after the pinned base (e.g. zlib, November 2026).
+RUN apt-get update && apt-get upgrade -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends libgomp1 fonts-noto-core \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/nyaysutra/app
