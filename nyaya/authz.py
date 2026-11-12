@@ -46,6 +46,8 @@ PERMISSIONS: dict[str, set[str]] = {
     "integrations.manage": {"admin"},
     "integrations.read": _WORKERS,
     "audit.read": {"admin"},                       # security logging stays; only administrators read it
+    "trash.use": _WORKERS,                         # see and restore what they deleted (nyaya/trash.py)
+    "trash.purge": {"admin"},                      # delete permanently before the 30 days are up
 }
 
 CASE_ACTIONS: dict[str, set[str]] = {
@@ -123,12 +125,12 @@ def _cap(role: str, access: str | None) -> str | None:
 
 
 def case_access(p: Principal, case_id: str | None) -> str | None:
-    """Effective access level of the caller on a case (None = no access)."""
+    """Effective access level of the caller on a case (None = no access; a case in the Trash gives no access)."""
     if not case_id or not p.signed_in:
         return None
     row = db.conn().execute(
         "SELECT cm.access, c.org_id FROM case_members cm JOIN cases c ON c.id = cm.case_id "
-        "WHERE cm.case_id = ? AND cm.user_id = ?", (case_id, p.user_id)).fetchone()
+        "WHERE cm.case_id = ? AND cm.user_id = ? AND c.deleted_at IS NULL", (case_id, p.user_id)).fetchone()
     if not row or row["org_id"] != p.org_id:
         return None
     return _cap(p.role, row["access"])
@@ -136,7 +138,7 @@ def case_access(p: Principal, case_id: str | None) -> str | None:
 
 def case_org(case_id: str) -> str | None:
     with db.system():
-        row = db.conn().execute("SELECT org_id FROM cases WHERE id=?", (case_id,)).fetchone()
+        row = db.conn().execute("SELECT org_id FROM cases WHERE id=? AND deleted_at IS NULL", (case_id,)).fetchone()
     return row["org_id"] if row else None
 
 
@@ -168,7 +170,7 @@ def accessible_case_ids(p: Principal) -> list[str]:
         return []
     rows = db.conn().execute(
         "SELECT cm.case_id FROM case_members cm JOIN cases c ON c.id = cm.case_id "
-        "WHERE cm.user_id = ? AND c.org_id = ?", (p.user_id, p.org_id))
+        "WHERE cm.user_id = ? AND c.org_id = ? AND c.deleted_at IS NULL", (p.user_id, p.org_id))
     return [r["case_id"] for r in rows]
 
 
@@ -178,7 +180,8 @@ def team_case_ids(p: Principal) -> list[str]:
         return []
     rows = db.conn().execute(
         "SELECT cm.case_id FROM case_members cm JOIN cases c ON c.id = cm.case_id "
-        "WHERE cm.user_id = ? AND c.org_id = ? AND cm.access IN ('owner','advocate')", (p.user_id, p.org_id))
+        "WHERE cm.user_id = ? AND c.org_id = ? AND cm.access IN ('owner','advocate') AND c.deleted_at IS NULL",
+        (p.user_id, p.org_id))
     return [r["case_id"] for r in rows]
 
 
@@ -191,7 +194,9 @@ def compatible_access(role: str, access: str) -> bool:
 def document_case(doc_id: str) -> tuple[str | None, str | None] | None:
     """(collection, case_id) of a document, or None if it does not exist."""
     with db.system():
-        row = db.conn().execute("SELECT collection, case_id FROM documents WHERE id=?", (doc_id,)).fetchone()
+        # A document in the Trash is treated as missing everywhere (restore goes through nyaya/trash.py).
+        row = db.conn().execute("SELECT collection, case_id FROM documents WHERE id=? AND status <> 'trashed'",
+                                (doc_id,)).fetchone()
     return (row["collection"], row["case_id"]) if row else None
 
 

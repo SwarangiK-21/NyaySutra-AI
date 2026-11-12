@@ -14,6 +14,7 @@ import { viewAwareness } from "./js/awareness.js";
 import { viewSearch } from "./js/search.js";
 import { viewJobs } from "./js/jobs.js";
 import { viewCalendar } from "./js/calendar.js";
+import { viewTrash } from "./js/trash.js";
 import { catalogueView } from "./js/statelaw.js";
 import { voiceControls, speakButton, bindSpeak } from "./js/voice.js";
 import { applyNavPermissions, can, membersCard, renderEnroll, renderForgot, renderLogin, renderMfa, renderReset,
@@ -40,13 +41,13 @@ async function refreshStatus() {
 const routes = { ask: viewResearch, research: viewResearch, dashboard: viewResearch, library: viewActs, cases: viewCases, acts: viewActs,
   drafts: viewDrafts, limitation: viewLimitation, about: viewAbout, privacy: viewPrivacy, lookup: viewCaseSearch, doc: viewDocument,
   upload: viewUpload, drafting: viewDrafting, notice: viewNotice, updates: viewUpdates, awareness: viewAwareness,
-  search: viewSearch, tools: viewTools, account: viewAccount, admin: viewAdmin, jobs: viewJobs, calendar: viewCalendar,
+  search: viewSearch, tools: viewTools, account: viewAccount, admin: viewAdmin, jobs: viewJobs, calendar: viewCalendar, trash: viewTrash,
   login: (m, r) => renderLogin(route, r.q), signup: (m, r) => renderSignup(route, r.q), forgot: () => renderForgot(),
   "reset-password": () => renderReset() };
 // Pages a signed-out visitor may open (public legal information); everything else asks them to sign in.
 const PUBLIC = new Set(["ask", "research", "dashboard", "library", "acts", "awareness", "limitation", "login", "signup", "forgot", "reset-password", "about", "privacy"]);
 const ASK_ROUTES = new Set(["ask", "research", "dashboard"]);
-const CASE_ROUTES = new Set(["cases", "calendar", "lookup", "upload", "doc"]);
+const CASE_ROUTES = new Set(["cases", "calendar", "trash", "lookup", "upload", "doc"]);
 // Library sections and the pages inside each one.
 const LIB_ROUTES = { library: "law", acts: "law", search: "law", drafting: "drafting", notice: "drafting", drafts: "drafting",
   tools: "tools", limitation: "tools", jobs: "tools", updates: "updates", awareness: "updates" };
@@ -57,7 +58,7 @@ function renderSecnav(r) {
   const el = $("#secnav");
   if (CASE_ROUTES.has(r.name) && r.name !== "doc" && !(r.name === "cases" && r.arg)) {
     mount(el, html`<div class="sec-head"><h1>${t("nav.cases_short")}</h1>
-      <div class="seg">${[["cases", t("cases.tab_all")], ...(can("calendar.use") ? [["calendar", t("cal.title")]] : [])].map(([k, x]) => html`<a href="#/${k}" class="${r.name === k ? "active" : ""}">${x}</a>`)}</div>
+      <div class="seg">${[["cases", t("cases.tab_all")], ...(can("calendar.use") ? [["calendar", t("cal.title")]] : []), ...(can("trash.use") ? [["trash", t("trash.title")]] : [])].map(([k, x]) => html`<a href="#/${k}" class="${r.name === k ? "active" : ""}">${x}</a>`)}</div>
       <span class="spacer"></span>
       ${can("casesearch.use") ? html`<a class="btn btn-ghost" href="#/lookup">${t("cases.find")}</a>` : ""}
       <a class="btn btn-ghost" href="#/upload">${t("qa.upload_summarise")}</a>
@@ -1117,7 +1118,7 @@ async function openPanel(name) {
 }
 
 // ── Quick jump (Ctrl+K) ──
-const JUMPS = () => [["#/ask", t("nav.ask")], ["#/cases", t("nav.cases_short"), "cases.list"], ["#/cases?new=1", t("qa.new_case"), "case.create"], ["#/calendar", t("cal.title"), "calendar.use"],
+const JUMPS = () => [["#/ask", t("nav.ask")], ["#/cases", t("nav.cases_short"), "cases.list"], ["#/cases?new=1", t("qa.new_case"), "case.create"], ["#/calendar", t("cal.title"), "calendar.use"], ["#/trash", t("trash.title"), "trash.use"],
   ["#/lookup", t("nav.lookup"), "casesearch.use"], ["#/upload", t("qa.upload_summarise"), "cases.list"], ["#/acts", t("nav.acts")], ["#/drafting", t("nav.drafting"), "drafting.use"], ["#/notice", t("lib.notice"), "drafting.use"],
   ["#/drafts", t("nav.templates")], ["#/limitation", t("nav.limitation")], ["#/tools", t("nav.tools")], ["#/updates", t("nav.updates"), "notifications.read"], ["#/awareness", t("nav.awareness")]].filter(([, , p]) => !p || can(p));
 async function openPalette() {

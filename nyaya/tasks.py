@@ -89,7 +89,8 @@ def authorize_draft(p: authz.Principal, params: dict) -> None:
         raise authz.NotFound("Template not found")
     if params.get("draft_id"):
         with db.system():
-            row = db.conn().execute("SELECT case_id, created_by FROM drafts WHERE id=?", (params["draft_id"],)).fetchone()
+            row = db.conn().execute("SELECT case_id, created_by FROM drafts WHERE id=? AND deleted_at IS NULL",
+                                    (params["draft_id"],)).fetchone()
         ok = row and row["case_id"] == case_id and (
             (row["case_id"] and authz.can_case(p, row["case_id"], "drafts")) or
             (not row["case_id"] and row["created_by"] == p.user_id))

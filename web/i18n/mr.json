@@ -3,5 +3,7 @@
   "nav.home": "मुखपृष्ठ", "nav.dashboard": "डॅशबोर्ड", "nav.cases": "केस फायली", "nav.lookup": "केस शोधा", "nav.research": "कायदेशीर संशोधन",
   "nav.drafting": "मसुदा लेखन", "nav.acts": "मूळ अधिनियम", "nav.awareness": "कायदेविषयक जागरूकता", "nav.updates": "अपडेट", "nav.tools": "साधने",
   "common.search": "शोधा", "common.save": "जतन करा", "common.cancel": "रद्द करा", "common.delete": "हटवा", "common.loading": "लोड होत आहे…",
-  "lang.switched": "भाषा मराठीत बदलली", "research.send": "पाठवा", "research.namaste": "नमस्कार."
+  "lang.switched": "भाषा मराठीत बदलली", "research.send": "पाठवा", "research.namaste": "नमस्कार.",
+  "trash.title": "कचरापेटी", "trash.lead": "हटवलेल्या केस, दस्तऐवज, मसुदे आणि कॅलेंडर नोंदी येथे {days} दिवस राहतात, नंतर कायमच्या हटवल्या जातात. पुनर्संचयित केल्यावर ती गोष्ट पूर्वीसारखी परत येते.", "trash.item": "बाब", "trash.deleted": "हटवले", "trash.left": "कायमचे हटण्यास", "trash.kind_case": "केस (दस्तऐवज, टिपा आणि मसुद्यांसह)", "trash.kind_document": "केस दस्तऐवज", "trash.kind_draft": "मसुदा", "trash.kind_event": "कॅलेंडर नोंद", "trash.by": "{name} यांनी", "trash.by_you": "तुम्ही", "trash.days_left": "{n} दिवस", "trash.restore": "पुनर्संचयित करा", "trash.restored": "पुनर्संचयित केले", "trash.none": "कचरापेटी रिकामी आहे.", "trash.purge": "कायमचे हटवा", "trash.purge_title": "कायमचे हटवायचे?", "trash.purge_body": "ही बाब आणि तिच्या फायली कायमच्या हटवल्या जातील. हे परत आणता येणार नाही.", "trash.purged": "कायमचे हटवले", "trash.empty": "कचरापेटी रिकामी करा", "trash.empty_title": "कचरापेटी रिकामी करायची?", "trash.empty_body": "{n} बाबी आणि त्यांच्या फायली कायमच्या हटवल्या जातील. हे परत आणता येणार नाही.", "trash.emptied": "{n} बाबी कायमच्या हटवल्या",
+  "trash.moved": "कचरापेटीत हलवले. तुम्ही ते 30 दिवसांपर्यंत पुनर्संचयित करू शकता."
 }

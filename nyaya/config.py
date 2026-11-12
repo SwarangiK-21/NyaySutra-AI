@@ -174,6 +174,7 @@ RETENTION_INACTIVE_MONTHS = int(_env("RETENTION_INACTIVE_MONTHS", default="36"))
 RETENTION_WARN_MONTHS = int(_env("RETENTION_WARN_MONTHS", default="33"))           # warning sent after
 RETENTION_AUDIT_YEARS = int(_env("RETENTION_AUDIT_YEARS", default="5"))
 RETENTION_TICK_HOURS = float(_env("RETENTION_TICK_HOURS", default="24"))
+TRASH_DAYS = max(1, int(_env("TRASH_DAYS", default="30")))   # deleted items can be restored this long (nyaya/trash.py)
 
 # Supreme Court judgments (open dataset): every judgment is in the catalogue; full texts are fetched on demand and at
 # most this many are kept (least recently used removed first), which keeps the database inside the 500 MB free tier.

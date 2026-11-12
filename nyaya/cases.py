@@ -97,13 +97,15 @@ def list_cases(principal) -> list[dict]:
     if not principal.signed_in:
         return []
     rows = db.conn().execute(
-        "SELECT c.*, cm.access, (SELECT COUNT(*) FROM documents d WHERE d.case_id=c.id) AS n_docs "
-        "FROM cases c JOIN case_members cm ON cm.case_id = c.id AND cm.user_id = ? "
-        "WHERE c.org_id = ? ORDER BY c.updated_at DESC", (principal.user_id, principal.org_id)).fetchall()
+        "SELECT c.*, cm.access, (SELECT COUNT(*) FROM documents d WHERE d.case_id=c.id AND d.status <> 'trashed') "
+        "AS n_docs FROM cases c JOIN case_members cm ON cm.case_id = c.id AND cm.user_id = ? "
+        "WHERE c.org_id = ? AND c.deleted_at IS NULL ORDER BY c.updated_at DESC",
+        (principal.user_id, principal.org_id)).fetchall()
     out = [dict(r) for r in rows]
     if principal.role == "admin":
         mine = {c["id"] for c in out}
-        for r in db.conn().execute(f"SELECT {', '.join(META_FIELDS)} FROM cases WHERE org_id=? ORDER BY updated_at DESC",
+        for r in db.conn().execute(f"SELECT {', '.join(META_FIELDS)} FROM cases WHERE org_id=? AND deleted_at IS NULL "
+                                   "ORDER BY updated_at DESC",
                                    (principal.org_id,)):
             if r["id"] not in mine:
                 out.append({**dict(r), "access": None, "n_docs": None})
@@ -168,7 +170,8 @@ def update_case(case_id: str, data: dict) -> dict | None:
 
 
 def delete_case(case_id: str) -> bool:
-    """Delete a case with all its files and records. The caller's right to do so is checked by the API
+    """Permanently delete a case with all its files and records (the app moves cases to the Trash first and calls
+    this when the Trash is emptied or after config.TRASH_DAYS: nyaya/trash.py). The caller's right to do so is checked by the API
     (owner or organisation administrator); the clean-up itself runs as internal work so no file is left behind."""
     from .ingest import delete_document
 

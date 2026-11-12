@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from . import (accounts, agent, authz, awareness, cases, casesearch, citations, config, db, docintel, drafting,
                embeddings, events, export, filescan, guardrails, indiacode, ingest, integrations, jobs, llm, mailer, ocr,
-               privacy, provisions, reference, retrieval, search, security, sessions, storage, tasks, tools)
+               privacy, provisions, reference, retrieval, search, security, sessions, storage, tasks, tools, trash)
 from . import supabase_auth as sb
 from .authz import Principal
 from .vectorindex import index
@@ -280,6 +280,11 @@ async def denied(request: Request, exc: authz.Denied):
 @app.exception_handler(authz.NotFound)
 async def not_found(request: Request, exc: authz.NotFound):
     return JSONResponse({"detail": str(exc)}, status_code=404)
+
+
+@app.exception_handler(trash.TrashError)
+async def trash_error(request: Request, exc: trash.TrashError):
+    return JSONResponse({"detail": str(exc)}, status_code=409)
 
 
 @app.exception_handler(accounts.AccountError)
@@ -944,10 +949,10 @@ def update_case(case_id: str, body: CaseIn, p: Principal = P):
 
 @app.delete("/api/cases/{case_id}")
 def delete_case(case_id: str, p: Principal = P):
+    """Moves the case (with its files, notes and drafts) to the Trash; see nyaya/trash.py."""
     authz.require_case(p, case_id, "case.delete")
-    if not cases.delete_case(case_id):
-        raise authz.NotFound("Case not found")
-    return {"ok": True}
+    trash.trash_case(p, case_id)
+    return {"ok": True, "trash": True}
 
 
 @app.post("/api/cases/{case_id}/notes")
@@ -1036,7 +1041,7 @@ DOC_FIELDS = ("id, case_id, collection, doc_type, title, filename, pages, chars,
 
 @app.get("/api/documents")
 def list_documents(case_id: str | None = None, collection: str | None = None, p: Principal = P):
-    sql, args = f"SELECT {DOC_FIELDS} FROM documents WHERE 1=1", []
+    sql, args = f"SELECT {DOC_FIELDS} FROM documents WHERE status <> 'trashed'", []
     if case_id:
         authz.require_case(p, case_id, "documents.read")
         # Derived documents (English translations) are reached from their source document, not listed.
@@ -1293,10 +1298,9 @@ def document(doc_id: str, p: Principal = P):
 
 @app.delete("/api/documents/{doc_id}")
 def delete_document(doc_id: str, p: Principal = P):
-    collection, _ = authz.require_document(p, doc_id, "documents.delete")
-    ingest.delete_document(doc_id)
-    db.audit("document.delete", "document", doc_id)
-    return {"ok": True}
+    authz.require_document(p, doc_id, "documents.delete")
+    trash.trash_document(p, doc_id)   # restorable from the Trash; nyaya/trash.py
+    return {"ok": True, "trash": True}
 
 
 @app.get("/api/documents/{doc_id}/file")
@@ -1711,7 +1715,8 @@ class DraftIn(BaseModel):
 def _require_draft(p: Principal, draft_id: str) -> dict:
     authz.require(p, "drafting.use")
     with db.system():
-        row = db.conn().execute("SELECT case_id, created_by FROM drafts WHERE id=?", (draft_id,)).fetchone()
+        row = db.conn().execute("SELECT case_id, created_by FROM drafts WHERE id=? AND deleted_at IS NULL",
+                                (draft_id,)).fetchone()
     ok = row and ((row["case_id"] and authz.can_case(p, row["case_id"], "drafts")) or
                   (not row["case_id"] and row["created_by"] == p.user_id))
     if not ok:
@@ -1779,9 +1784,8 @@ def draft_version(draft_id: str, v: int, p: Principal = P):
 @app.delete("/api/drafts/{draft_id}")
 def draft_delete(draft_id: str, p: Principal = P):
     _require_draft(p, draft_id)
-    if not drafting.delete(draft_id):
-        raise authz.NotFound("Draft not found")
-    return {"ok": True}
+    trash.trash_draft(p, draft_id)   # restorable from the Trash; nyaya/trash.py
+    return {"ok": True, "trash": True}
 
 
 @app.get("/api/drafts/{draft_id}/export", dependencies=[Depends(rate(20, "export"))])
@@ -2138,8 +2142,33 @@ def calendar_update(event_id: str, body: EventIn, p: Principal = Depends(need("c
 
 @app.delete("/api/calendar/events/{event_id}")
 def calendar_delete(event_id: str, p: Principal = Depends(need("calendar.use"))):
-    events.delete(p, event_id[:40])
+    events.delete(p, event_id[:40])   # to the Trash
+    return {"ok": True, "trash": True}
+
+
+# ── Trash (recycle bin) ──────────────────────────────────────────────────────
+TrashKind = Literal["case", "document", "draft", "event"]
+
+
+@app.get("/api/trash")
+def trash_list(p: Principal = Depends(need("trash.use"))):
+    return {"items": trash.list_items(p), "days": config.TRASH_DAYS, "can_purge": p.can("trash.purge")}
+
+
+@app.post("/api/trash/{kind}/{item_id}/restore")
+def trash_restore(kind: TrashKind, item_id: str, p: Principal = Depends(need("trash.use"))):
+    return trash.restore(p, kind, item_id[:40])
+
+
+@app.delete("/api/trash/{kind}/{item_id}")
+def trash_purge(kind: TrashKind, item_id: str, p: Principal = Depends(need("trash.purge"))):
+    trash.purge(p, kind, item_id[:40])
     return {"ok": True}
+
+
+@app.post("/api/trash/empty")
+def trash_empty(p: Principal = Depends(need("trash.purge"))):
+    return {"ok": True, "deleted": trash.empty(p)}
 
 
 app.mount("/static", StaticFiles(directory=config.WEB_DIR), name="static")

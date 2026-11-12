@@ -123,6 +123,21 @@ class VectorIndex:
             self.coll = np.concatenate([self.coll, np.array([collection] * n, dtype=object)])
         self.save_cache()   # Supabase mode: the next start does not need to download these embeddings again
 
+    def add_doc_from_db(self, doc_id: str) -> int:
+        """Put a document back into the index from its stored embeddings (restore from the Trash)."""
+        row = db.conn().execute("SELECT case_id, collection FROM documents WHERE id=? AND status='ready'",
+                                (doc_id,)).fetchone()
+        if not row:
+            return 0
+        rows = db.conn().execute("SELECT id, emb FROM chunks WHERE doc_id=? AND emb IS NOT NULL ORDER BY id",
+                                 (doc_id,)).fetchall()
+        if not rows:
+            return 0
+        self.remove_doc(doc_id)   # never twice
+        vecs = np.vstack([np.frombuffer(bytes(r[1]), dtype=np.float32) for r in rows])
+        self.add([r[0] for r in rows], doc_id, row["case_id"], row["collection"], vecs)
+        return len(rows)
+
     def remove_doc(self, doc_id: str) -> None:
         with self._lock:
             keep = self.doc != doc_id

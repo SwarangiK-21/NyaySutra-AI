@@ -298,7 +298,7 @@ def list_drafts(case_id: str | None = None, kind: str | None = None, *, user_id:
                 team_cases: list[str] | None = None) -> list[dict]:
     """The caller's own drafts plus the drafts of cases where they are on the case team."""
     sql, args = ("SELECT id, case_id, kind, doc_type, forum, style, lang, title, version, updated_at, review_status, "
-                 "approved_version FROM drafts WHERE 1=1"), []
+                 "approved_version FROM drafts WHERE deleted_at IS NULL"), []
     team = list(team_cases or [])
     sql += " AND ((case_id IS NULL AND created_by = ?)" + (f" OR case_id IN ({','.join('?' * len(team))})" if team else "") + ")"
     args += [user_id or "", *team]
@@ -359,6 +359,7 @@ def approval(d: dict) -> dict | None:
 
 
 def delete(draft_id: str) -> bool:
+    """Permanent delete (the app moves drafts to the Trash first: nyaya/trash.py)."""
     with db.tx() as c:
         ok = c.execute("DELETE FROM drafts WHERE id=?", (draft_id,)).rowcount > 0
     if ok:

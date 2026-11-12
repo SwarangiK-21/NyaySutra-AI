@@ -256,7 +256,7 @@ async function viewEditor(main, id) {
     try { await api(`/api/drafts/${encodeURIComponent(id)}/review`, { method: "POST", body: { action: b.dataset.review, note: $("#revNote").value.trim() } });
       toast(t(`review.done_${b.dataset.review}`)); viewEditor(main, id); } catch (e) { toast(e.message, true); }
   }; });
-  $("#delBtn").onclick = async () => { if (await confirmDialog(t("drafting.delete_title"), t("drafting.delete_body"), t("common.delete"))) { await api(`/api/drafts/${encodeURIComponent(id)}`, { method: "DELETE" }); location.hash = "#/drafting"; } };
+  $("#delBtn").onclick = async () => { if (await confirmDialog(t("drafting.delete_title"), t("drafting.delete_body"), t("common.delete"))) { await api(`/api/drafts/${encodeURIComponent(id)}`, { method: "DELETE" }); toast(t("trash.moved")); location.hash = "#/drafting"; } };
   $$("[data-ver]").forEach((b) => { b.onclick = async () => { const v = await api(`/api/drafts/${encodeURIComponent(id)}/versions/${b.dataset.ver}`); $("#edText").value = v.content; dirty = true; prev(); toast(t("drafting.version_loaded", { v: v.version })); }; });
   const regenerate = async (extraKnown, box) => {
     const inp = d.inputs || {};
