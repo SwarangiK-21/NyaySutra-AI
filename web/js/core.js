@@ -214,5 +214,5 @@ export function confirmDialog(title, bodyText, okLabel) {
   });
 }
 /** Consent before document text is sent to the configured LLM (an external service). */
-export const aiConsent = () => confirmDialog(t("consent.title"), t("consent.body"), t("consent.ok"));
+export const aiConsent = () => confirmDialog(t("consent.title"), t("consent.body", { service: state.status?.llm_host || "OpenAI" }), t("consent.ok"));
 export function download(url) { const a = document.createElement("a"); a.href = url; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove(); }

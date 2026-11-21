@@ -16,7 +16,7 @@ Browser ── HttpOnly session cookie + CSRF header ──► FastAPI backend (
                                                      │      → row-level security policies using auth.uid()
                                                      ├──► Supabase Vault        the session's Supabase tokens (encrypted at rest)
                                                      ├──► Supabase Storage      private bucket, server-side key only
-                                                     └──► Ollama Cloud (LLM)    prompts with identity numbers masked
+                                                     └──► OpenAI API (LLM)      prompts with identity numbers masked
 ```
 
 The browser never receives a Supabase key or token. Without Supabase settings the app runs in **local single-user
@@ -115,7 +115,7 @@ stray membership row existed.
 | Provider | Receives | Notes |
 |---|---|---|
 | Supabase (Mumbai, ap-south-1) | All stored data: accounts, cases, documents, passages, embeddings, chats, audit log, files | Free plan. Backups on the free plan are not downloadable — schedule your own `pg_dump` + storage export before relying on it |
-| Ollama Cloud | Questions, selected passages, and (after consent) whole-document text, with identity numbers masked; names and facts are sent | This project has **not verified** Ollama's retention or training terms. Treat anything sent as disclosed to a third party; for the most sensitive matters use a local Ollama server (`OLLAMA_HOST`) |
+| OpenAI API (`gpt-6-luna`) | Questions, selected passages, and (after consent) whole-document text, with identity numbers masked; names and facts are sent | OpenAI's API terms state that API data is not used for training by default and is kept up to 30 days for abuse monitoring; Zero Data Retention needs OpenAI's approval. Check the current terms and the project's data-sharing settings in the OpenAI dashboard. Treat anything sent as disclosed to a third party; for the most sensitive matters use a local Ollama server (`LLM_PROVIDER=ollama`, `OLLAMA_HOST`) |
 | Browser speech service (Chrome/Edge) | Audio, only when the user uses voice input | Provided by the browser, not by NyaySutra |
 | LiveLaw RSS, India Code | Nothing about users (outbound fetches only) | |
 
@@ -171,7 +171,7 @@ that removes secrets, tokens and e-mail addresses.
 | Multi-instance deployment | Per-IP limits and the 15 s session cache are per process; use a shared limiter and set `APP_SECRET_KEY`. Supabase Auth's own per-IP limits see the server's IP for every user |
 | Shared database role | See §4: RLS does not stop SQL run directly as `nyaya_app` |
 | Output filter timing | Streamed tokens reach the browser before the final filtered text replaces them; secrets are never in the model's context, so this is defence in depth |
-| PII minimisation | Structured identifiers only; names, addresses and facts still reach Ollama Cloud (provider terms unverified) |
+| PII minimisation | Structured identifiers only; names, addresses and facts still reach the AI provider (OpenAI) |
 | Malware scanning | Active-content checks always run; ClamAV only when installed (it is not installed now) |
 | Harmful-request policy | Pattern-based (English + Hindi): paraphrases can slip through (the model's own safety and prompts remain); Marathi not covered |
 | Case-law citation check | Heuristic on party names and reporter citations |

@@ -1,6 +1,12 @@
-"""Minimal Ollama client (cloud via API key, or a local server) with streaming,
-JSON mode, retries and user-friendly errors. One pooled HTTP connection is
-reused for every call, which keeps per-request latency low.
+"""Language-model client with streaming, JSON mode, retries and user-friendly errors, for two providers
+(config.LLM_PROVIDER):
+* openai - OpenAI's Chat Completions API (default model gpt-6-luna), key in OPENAI_API_KEY;
+* ollama - Ollama Cloud with an API key, or a local Ollama server.
+One pooled HTTP connection is reused for every call, which keeps per-request latency low.
+
+OpenAI models differ in which optional settings they accept (some reasoning models refuse `temperature`, for
+example). When the API names an optional setting as unsupported, it is dropped for that model and the call is
+repeated once; the rest of the app never needs to know.
 
 This is the single point where text leaves the server for the language model, so personal identifiers are
 pseudonymised here (privacy.redact_messages) and restored in the reply.
@@ -44,14 +50,26 @@ _client: httpx.Client | None = None
 _client_lock = threading.Lock()
 
 
+def _openai() -> bool:
+    return config.LLM_PROVIDER == "openai"
+
+
+def provider_name() -> str:
+    if _openai():
+        return "OpenAI"
+    return "Ollama Cloud" if "ollama.com" in config.OLLAMA_HOST else "Local Ollama"
+
+
 def _http() -> httpx.Client:
     global _client
     with _client_lock:
         if _client is None:
             headers = {"User-Agent": "NyaySutra-AI/1.0"}
-            if config.OLLAMA_API_KEY:
-                headers["Authorization"] = f"Bearer {config.OLLAMA_API_KEY}"
-            _client = httpx.Client(base_url=config.OLLAMA_HOST, headers=headers,
+            key = config.OPENAI_API_KEY if _openai() else config.OLLAMA_API_KEY
+            if key:
+                headers["Authorization"] = f"Bearer {key}"
+            base = config.OPENAI_BASE_URL if _openai() else config.OLLAMA_HOST
+            _client = httpx.Client(base_url=base, headers=headers,
                                    timeout=httpx.Timeout(config.LLM_TIMEOUT, connect=15),
                                    limits=httpx.Limits(max_keepalive_connections=8, max_connections=16))
         return _client
@@ -127,9 +145,24 @@ def _sleep(attempt: int) -> None:
     time.sleep(random.uniform(0, min(8.0, 1.0 * 2 ** attempt)))   # full jitter, capped
 
 
+# OpenAI: optional settings a model refused (model -> names), learnt from the API's own error replies.
+_OPTIONAL = ("temperature", "reasoning_effort", "response_format", "max_completion_tokens", "stream_options")
+_unsupported: dict[str, set[str]] = {}
+
+
 def _payload(messages: list[dict], model: str | None, stream: bool, json_mode: bool, temperature: float,
              max_tokens: int | None) -> dict:
     model = model or config.LLM_MODEL
+    if _openai():
+        p = {"model": model, "messages": messages, "stream": stream, "temperature": temperature,
+             "reasoning_effort": config.LLM_THINK or "low"}
+        if max_tokens:
+            p["max_completion_tokens"] = max_tokens
+        if json_mode:
+            p["response_format"] = {"type": "json_object"}
+        if stream:
+            p["stream_options"] = {"include_usage": True}   # token counts, for the cost record
+        return p
     p: dict = {"model": model, "messages": messages, "stream": stream,
                "options": {"temperature": temperature}}
     if max_tokens:
@@ -141,9 +174,56 @@ def _payload(messages: list[dict], model: str | None, stream: bool, json_mode: b
     return p
 
 
+def _for_model(body: dict, model: str) -> dict:
+    """The request for this model, without settings it has refused before (OpenAI)."""
+    drop = _unsupported.get(model, set())
+    return {k: v for k, v in {**body, "model": model}.items() if k not in drop}
+
+
+def _refused_setting(r: httpx.Response) -> str | None:
+    """OpenAI 400 that names an optional setting this model does not accept (then it is dropped and retried)."""
+    if not _openai() or r.status_code != 400:
+        return None
+    try:
+        err = r.json().get("error") or {}
+    except ValueError:
+        return None
+    text = f"{err.get('param') or ''} {err.get('message') or ''}".lower()
+    return next((k for k in _OPTIONAL if k in text), None)
+
+
+_NO_CREDIT = ("insufficient_quota", "billing_hard_limit_reached")
+
+
+def _openai_error(r: httpx.Response) -> None:
+    try:
+        err = r.json().get("error") or {}
+    except ValueError:
+        err = {"message": r.text[:200]}
+    code, msg = str(err.get("code") or err.get("type") or ""), str(err.get("message") or "")
+    log.warning("OpenAI error %s (%s): %s", r.status_code, code, msg[:200])
+    if r.status_code == 401:
+        raise LLMError("The OpenAI API key was rejected. Check OPENAI_API_KEY in .env.")
+    if r.status_code == 403:
+        raise LLMError("This OpenAI project is not allowed to use the model (check the project's model access and "
+                       "region in the OpenAI dashboard).")
+    if r.status_code == 429 and code in _NO_CREDIT:
+        raise LLMError("The AI service has no credit left on the OpenAI account, or its monthly budget is reached "
+                       "(platform.openai.com, Billing). Ask the administrator; library search and case files still work.")
+    if r.status_code == 404 or code == "model_not_found":
+        raise LLMError(f"Model not available on this OpenAI account: {msg[:120]}", fallback_ok=True)
+    if r.status_code == 429:
+        raise LLMError("OpenAI usage limit reached for now. Please wait a minute and try again.", transient=True)
+    if r.status_code == 400:
+        raise LLMError("The AI service refused the request. Please rephrase it or try again.")
+    raise LLMError(f"The language model service returned an error ({r.status_code}).", transient=r.status_code >= 500)
+
+
 def _raise_for(r: httpx.Response) -> None:
     if r.status_code < 400:
         return
+    if _openai():
+        _openai_error(r)
     try:
         detail = r.json().get("error", "")
     except ValueError:
@@ -165,17 +245,48 @@ def _raise_for(r: httpx.Response) -> None:
 _RETRY_STATUS = (429, 500, 502, 503, 504)
 
 
+def _retryable(r: httpx.Response) -> bool:
+    if r.status_code not in _RETRY_STATUS:
+        return False
+    if _openai() and r.status_code == 429:   # an empty account does not recover by waiting
+        try:
+            return (r.json().get("error") or {}).get("code") not in _NO_CREDIT
+        except ValueError:
+            return True
+    return True
+
+
+def _chat_path() -> str:
+    return "/chat/completions" if _openai() else "/api/chat"
+
+
+def _note_usage(usage: dict | None) -> None:
+    if usage:
+        _record(usage={"in": usage.get("prompt_tokens", 0), "out": usage.get("completion_tokens", 0),
+                       "cached": (usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0)})
+
+
 def _chat_once(body: dict, model: str) -> str:
     """One model, bounded retries with jittered back-off."""
     last: LLMError | None = None
     for attempt in range(config.LLM_RETRIES + 1):
         try:
-            r = _http().post("/api/chat", json={**body, "model": model})
-            if r.status_code in _RETRY_STATUS and attempt < config.LLM_RETRIES:
+            r = _http().post(_chat_path(), json=_for_model(body, model))
+            refused = _refused_setting(r)
+            if refused and refused not in _unsupported.get(model, set()):
+                _unsupported.setdefault(model, set()).add(refused)
+                log.info("Model %s does not accept %r; retrying without it", model, refused)
+                r = _http().post(_chat_path(), json=_for_model(body, model))
+            if _retryable(r) and attempt < config.LLM_RETRIES:
                 _sleep(attempt)
                 continue
             _raise_for(r)
-            return (r.json().get("message") or {}).get("content", "")
+            data = r.json()
+            if _openai():
+                _note_usage(data.get("usage"))
+                choice = (data.get("choices") or [{}])[0]
+                return (choice.get("message") or {}).get("content") or ""
+            return (data.get("message") or {}).get("content", "")
         except LLMError as exc:
             last = exc
             break
@@ -265,16 +376,23 @@ def _stream_with_fallback(messages, model, temperature, max_tokens, info: dict) 
 
 def _stream(messages: list[dict], model: str, temperature: float, max_tokens: int | None) -> Iterator[str]:
     body = _payload(messages, model, True, False, temperature, max_tokens)
-    for attempt in range(config.LLM_RETRIES + 1):
+    for attempt in range(config.LLM_RETRIES + 2):   # +1: one repeat after dropping a refused setting
         try:
-            with _http().stream("POST", "/api/chat", json=body) as r:
-                if r.status_code in _RETRY_STATUS and attempt < config.LLM_RETRIES:
-                    r.read()
-                    _sleep(attempt)
-                    continue
+            with _http().stream("POST", _chat_path(), json=_for_model(body, model)) as r:
                 if r.status_code >= 400:
                     r.read()
+                    refused = _refused_setting(r)
+                    if refused and refused not in _unsupported.get(model, set()):
+                        _unsupported.setdefault(model, set()).add(refused)
+                        log.info("Model %s does not accept %r; retrying without it", model, refused)
+                        continue
+                    if _retryable(r) and attempt < config.LLM_RETRIES:
+                        _sleep(attempt)
+                        continue
                     _raise_for(r)
+                if _openai():
+                    yield from _openai_events(r)
+                    return
                 for line in r.iter_lines():
                     if not line:
                         continue
@@ -294,6 +412,29 @@ def _stream(messages: list[dict], model: str, temperature: float, max_tokens: in
             raise LLMError("The language model took too long to respond. Please try again.", transient=True) from exc
         except httpx.HTTPError as exc:
             raise LLMError("Lost connection to the language model service.", transient=True) from exc
+
+
+def _openai_events(r: httpx.Response) -> Iterator[str]:
+    """Server-sent events of the Chat Completions API: `data: {json}` lines, ending with `data: [DONE]`."""
+    for line in r.iter_lines():
+        if not line.startswith("data:"):
+            continue
+        data = line[5:].strip()
+        if data == "[DONE]":
+            return
+        try:
+            evt = json.loads(data)
+        except ValueError:
+            continue
+        if evt.get("error"):
+            err = evt["error"]
+            raise LLMError(f"Model error: {str(err.get('message', err) if isinstance(err, dict) else err)[:200]}",
+                           transient=True)
+        _note_usage(evt.get("usage"))
+        for ch in evt.get("choices") or []:
+            tok = (ch.get("delta") or {}).get("content")
+            if tok:
+                yield tok
 
 
 def chat_json(messages: list[dict], *, model: str | None = None, default: dict | None = None,
@@ -323,8 +464,9 @@ def parse_json(raw: str, default: dict | None = None) -> dict:
 
 
 def ping() -> tuple[bool, str]:
+    """Reachability and key check without spending tokens (model list)."""
     try:
-        r = _http().get("/api/tags", timeout=10)
+        r = _http().get("/models" if _openai() else "/api/tags", timeout=10)
         return r.status_code < 400, f"HTTP {r.status_code}"
     except httpx.HTTPError as exc:
         return False, type(exc).__name__

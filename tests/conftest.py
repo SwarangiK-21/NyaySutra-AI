@@ -17,6 +17,10 @@ _TMP = Path(tempfile.mkdtemp(prefix="nyaya_test_"))
 os.environ["NYAYA_DB"] = str(_TMP / "test.db")
 os.environ["NYAYA_HOME"] = str(_TMP / "home")
 os.environ.setdefault("OLLAMA_API_KEY", "test-key")
+# The offline suite fixes the provider (tests switch to OpenAI themselves); a real OPENAI_API_KEY in .env is ignored.
+os.environ["LLM_PROVIDER"] = "ollama"
+os.environ["OPENAI_API_KEY"] = ""
+os.environ["LLM_MODEL"], os.environ["FAST_LLM_MODEL"] = "gpt-oss:120b", "gpt-oss:20b"
 os.environ["SYNC_ENABLED"] = "false"  # no background network sync during tests
 os.environ["WEB_SEARCH_ENABLED"] = "false"   # no live web search in the offline suite (tests patch it in)
 os.environ["TIME_CHECK_URL"] = ""           # no network time check (tests patch it in)
