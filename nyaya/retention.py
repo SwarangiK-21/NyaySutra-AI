@@ -56,6 +56,11 @@ def policy() -> list[dict]:
         {"data": "Deleted cases, documents, drafts and calendar entries (the Trash)",
          "kept": f"{config.TRASH_DAYS} days, then deleted for good", "from": "when you deleted them; an administrator "
          "can delete them for good sooner"},
+        {"data": f"Text sent to the AI service ({'OpenAI' if config.LLM_PROVIDER == 'openai' else 'Ollama'}): your "
+                 "question, the relevant law and case passages; identity numbers are masked first",
+         "kept": "by the AI provider under its API terms (OpenAI: not used for training; kept up to 30 days for "
+                 "abuse monitoring)" if config.LLM_PROVIDER == "openai" else "by the AI provider under its terms",
+         "from": "the request"},
         {"data": "Security audit log (who did what, never document contents)",
          "kept": f"{config.RETENTION_AUDIT_YEARS} years" if config.RETENTION_AUDIT_YEARS > 0 else "kept",
          "from": "the event"},

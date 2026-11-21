@@ -755,7 +755,7 @@ def status(p: Principal = P):
     return {
         "llm_model": config.LLM_MODEL, "fast_model": config.FAST_LLM_MODEL, "embed_model": config.EMBED_MODEL,
         "reranker": config.RERANK_MODEL if config.RERANK_ENABLED else None, "llm_reachable": _state["llm"],
-        "llm_host": "Ollama Cloud" if "ollama.com" in config.OLLAMA_HOST else "Local Ollama",
+        "llm_host": llm.provider_name(), "llm_provider": config.LLM_PROVIDER,
         "models_ready": _state["models_ready"], "indexed_chunks": len(index), "documents": lib,
         "processing": processing, "ocr": ocr.status(), "sync_enabled": config.SYNC_ENABLED,
         "database": "Supabase Postgres" if db.backend() == "postgres" else "Local SQLite",

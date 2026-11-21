@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI">
   <img src="https://img.shields.io/badge/Supabase-Postgres%20%2B%20RLS-3ECF8E?style=flat-square&logo=supabase&logoColor=white" alt="Supabase">
   <img src="https://img.shields.io/badge/RAG-BM25%20%2B%20dense%20%2B%20rerank-6A5ACD?style=flat-square" alt="Hybrid RAG">
-  <img src="https://img.shields.io/badge/LLM-gpt--oss%20via%20Ollama-000000?style=flat-square&logo=ollama&logoColor=white" alt="Ollama">
+  <img src="https://img.shields.io/badge/LLM-OpenAI%20gpt--6--luna-000000?style=flat-square&logo=openai&logoColor=white" alt="OpenAI gpt-6-luna">
   <img src="https://img.shields.io/badge/OCR-RapidOCR%20(ONNX)-FF6F00?style=flat-square" alt="OCR">
   <img src="https://img.shields.io/badge/tests-pytest-0A9EDC?style=flat-square&logo=pytest&logoColor=white" alt="pytest">
   <img src="https://img.shields.io/badge/status-working%20prototype-orange?style=flat-square" alt="Status">
@@ -58,7 +58,7 @@ Indian legal research is slow and error-prone. Laws are long and frequently amen
 | Backend | Python 3.12, FastAPI, Uvicorn, Server-Sent Events |
 | Frontend | Vanilla JavaScript, HTML/CSS (government-portal theme), JSON i18n |
 | Retrieval | Exact section lookup + BM25 + dense embeddings (fastembed, ONNX) → reciprocal rank fusion → cross-encoder rerank |
-| LLM | `gpt-oss:120b` (answers) and `gpt-oss:20b` (planning / verification / fallback) via Ollama Cloud or a local Ollama server |
+| LLM | OpenAI `gpt-6-luna` (answers, planning and verification; `LLM_PROVIDER=openai`). Alternative: `gpt-oss:120b` / `gpt-oss:20b` via Ollama Cloud or a local Ollama server (`LLM_PROVIDER=ollama`) |
 | Data | Supabase Postgres + private Storage (Mumbai region) with row-level security; SQLite + FTS5 for fully offline use |
 | Documents | PDFium (`pypdfium2`), RapidOCR, python-docx, openpyxl, python-pptx, fpdf2 + HarfBuzz |
 | Quality | pytest (offline suite with fake LLM, fake Supabase Auth and mocked feeds) |
@@ -126,7 +126,7 @@ All screenshots are from the running application with synthetic data.
 
 ## 🚀 Installation and running
 
-**Prerequisites:** Python 3.12, an [Ollama Cloud](https://ollama.com/settings/keys) API key (or a local Ollama server). Supabase is optional — without it the app runs in local single-user mode on SQLite.
+**Prerequisites:** Python 3.12, an [OpenAI API key](https://platform.openai.com/api-keys) with credit and a monthly budget (or, alternatively, an Ollama Cloud key or a local Ollama server). Supabase is optional — without it the app runs in local single-user mode on SQLite.
 
 ```powershell
 git clone https://github.com/SwarangiK-21/NyaySutra-AI.git
@@ -137,7 +137,7 @@ py -3.12 -m venv "$env:USERPROFILE\.nyaysutra\venv"
 & "$env:USERPROFILE\.nyaysutra\venv\Scripts\python.exe" -m pip install -r requirements-dev.txt   # app + test tools
 
 # configure
-Copy-Item .env.example .env      # then add OLLAMA_API_KEY (and Supabase values if you use it)
+Copy-Item .env.example .env      # then add OPENAI_API_KEY (and Supabase values if you use it)
 
 # one-time: download official bare acts and build the law-library index (~25 min on a laptop CPU)
 & "$env:USERPROFILE\.nyaysutra\venv\Scripts\python.exe" scripts\fetch_bare_acts.py

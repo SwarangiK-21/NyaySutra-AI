@@ -39,13 +39,19 @@ WEB_DIR = ROOT / "web"
 HOME_DIR = Path(_env("NYAYA_HOME", default=str(Path.home() / ".nyaysutra")))
 MODEL_CACHE = Path(_env("MODEL_CACHE", default=str(HOME_DIR / "models")))
 
-# ── LLM (Ollama — cloud with API key, or a local Ollama server) ─────────────
+# ── LLM: OpenAI (default when OPENAI_API_KEY is set) or Ollama (cloud with API key, or a local server) ──
+OPENAI_API_KEY = _env("OPENAI_API_KEY")
+OPENAI_BASE_URL = _env("OPENAI_BASE_URL", default="https://api.openai.com/v1").rstrip("/")
 OLLAMA_API_KEY = _env("OLLAMA_API_KEY")
 OLLAMA_HOST = _env("OLLAMA_HOST", default="https://ollama.com" if OLLAMA_API_KEY else "http://127.0.0.1:11434")
-LLM_MODEL = _env("LLM_MODEL", "LLM_MODEL_NAME", default="gpt-oss:120b")
-FAST_LLM_MODEL = _env("FAST_LLM_MODEL", default="gpt-oss:20b")
+LLM_PROVIDER = (_env("LLM_PROVIDER") or ("openai" if OPENAI_API_KEY else "ollama")).lower()
+if LLM_PROVIDER not in ("openai", "ollama"):
+    raise RuntimeError(f"LLM_PROVIDER must be 'openai' or 'ollama', not {LLM_PROVIDER!r}")
+_OPENAI = LLM_PROVIDER == "openai"
+LLM_MODEL = _env("LLM_MODEL", "LLM_MODEL_NAME", default="gpt-6-luna" if _OPENAI else "gpt-oss:120b")
+FAST_LLM_MODEL = _env("FAST_LLM_MODEL", default="gpt-6-luna" if _OPENAI else "gpt-oss:20b")
 LLM_TIMEOUT = float(_env("LLM_TIMEOUT", default="180"))
-# Reasoning effort for gpt-oss style models: low keeps latency down.
+# Reasoning effort: low keeps latency and cost down (Ollama "think" for gpt-oss; OpenAI "reasoning_effort").
 LLM_THINK = _env("LLM_THINK", default="low")
 
 # ── Embeddings + reranking (local, private) ─────────────────────────────────
@@ -148,17 +154,21 @@ BATCH_MAX_TOTAL_MB = int(_env("BATCH_MAX_TOTAL_MB", default="500"))
 
 # ── LLM resilience ──────────────────────────────────────────────────────────
 LLM_RETRIES = int(_env("LLM_RETRIES", default="2"))                     # extra attempts per model, with jittered back-off
-LLM_FALLBACK_MODEL = _env("LLM_FALLBACK_MODEL", default="gpt-oss:20b")  # used (and labelled) when the main model fails
+# Used (and labelled) when the main model fails; same provider. None by default on OpenAI (one model, gpt-6-luna).
+LLM_FALLBACK_MODEL = _env("LLM_FALLBACK_MODEL", default="" if _OPENAI else "gpt-oss:20b")
 LLM_BREAKER_FAILURES = int(_env("LLM_BREAKER_FAILURES", default="4"))   # consecutive failures that open the circuit
 LLM_BREAKER_SECONDS = int(_env("LLM_BREAKER_SECONDS", default="60"))    # how long calls to that model are skipped
 
 # ── Live information (current time, web search) ─────────────────────────────
 # Time questions are answered from the server clock in DEFAULT_TIMEZONE, cross-checked against the Date header of a
 # trusted HTTPS server (no model involved). Empty TIME_CHECK_URL = no cross-check (the answer then says so).
-TIME_CHECK_URL = _env("TIME_CHECK_URL", default="https://ollama.com" if OLLAMA_API_KEY else "")
+TIME_CHECK_URL = _env("TIME_CHECK_URL", default="https://api.openai.com" if _OPENAI and OPENAI_API_KEY
+                      else "https://ollama.com" if OLLAMA_API_KEY else "")
 # Web search for current legal news and for questions the local library cannot answer (e.g. 26/11, famous trials).
-# Uses Ollama's web-search API with the same OLLAMA_API_KEY; only the search query is sent, never case documents.
-WEB_SEARCH_ENABLED = _bool("WEB_SEARCH_ENABLED", bool(OLLAMA_API_KEY))
+# Uses Ollama's web-search API with OLLAMA_API_KEY; only the search query is sent, never case documents.
+# Off by default with the OpenAI provider (project owner's decision, Nov 2026); WEB_SEARCH_ENABLED=true turns it on
+# again if an Ollama key is also configured.
+WEB_SEARCH_ENABLED = _bool("WEB_SEARCH_ENABLED", bool(OLLAMA_API_KEY) and not _OPENAI)
 WEB_SEARCH_URL = _env("WEB_SEARCH_URL", default="https://ollama.com/api/web_search")
 WEB_SEARCH_TIMEOUT = float(_env("WEB_SEARCH_TIMEOUT", default="20"))
 WEB_CACHE_HOURS = float(_env("WEB_CACHE_HOURS", default="24"))              # how long a web result is reused

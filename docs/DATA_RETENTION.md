@@ -47,7 +47,8 @@ deleted by a user.
 ## Where data is stored
 
 * Database and files: a private Supabase project in Mumbai (ap-south-1); row-level security on every table.
-* AI processing: questions and the passages used to answer them go to the configured AI model (Ollama Cloud);
+* AI processing: questions and the passages used to answer them go to the configured AI model (OpenAI `gpt-6-luna`;
+  OpenAI keeps API data up to 30 days for abuse monitoring and does not train on it by default);
   personal identifiers (Aadhaar, PAN, phone, e-mail, card and account numbers, passport) are replaced first.
 * Web search: only search words are sent, with client and party names removed.
 

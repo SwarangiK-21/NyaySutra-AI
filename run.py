@@ -30,13 +30,17 @@ def main() -> int:
     if not local and not config.PUBLIC_URL.startswith("https://"):
         print("Warning: serving on a network interface without HTTPS. Put the app behind a TLS reverse proxy and set "
               "PUBLIC_URL=https://… so session cookies are marked Secure.")
-    if not config.OLLAMA_API_KEY and "ollama.com" in config.OLLAMA_HOST:
+    if config.LLM_PROVIDER == "openai" and not config.OPENAI_API_KEY:
+        print("OPENAI_API_KEY is missing in .env (LLM_PROVIDER=openai)")
+        return 2
+    if config.LLM_PROVIDER == "ollama" and not config.OLLAMA_API_KEY and "ollama.com" in config.OLLAMA_HOST:
         print("OLLAMA_API_KEY is missing in .env")
         return 2
+    from nyaya import llm
 
     url = f"http://{'127.0.0.1' if local else config.APP_HOST}:{config.APP_PORT}"
     print(f"\n  NyaySutra AI  ->  {url}\n  LLM: {config.LLM_MODEL} (fast: {config.FAST_LLM_MODEL}) via "
-          f"{'Ollama Cloud' if 'ollama.com' in config.OLLAMA_HOST else config.OLLAMA_HOST}\n"
+          f"{llm.provider_name()}\n"
           f"  Press Ctrl+C to stop.\n")
     if "--no-browser" not in sys.argv:
         Timer(2.0, lambda: webbrowser.open(url)).start()

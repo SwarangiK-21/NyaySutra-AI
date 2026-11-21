@@ -123,6 +123,7 @@ def redact_messages(messages: list[dict]) -> tuple[list[dict], Redactor]:
 # ── Log redaction ─────────────────────────────────────────────────────────────
 _LOG_PATTERNS = [
     (re.compile(r"sb_(?:secret|publishable)_[A-Za-z0-9_-]{8,}"), "[supabase-key]"),
+    (re.compile(r"\bsk-(?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{20,}"), "[openai-key]"),
     (re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"), "[jwt]"),
     (re.compile(r"(?i)\b(bearer)\s+[A-Za-z0-9._~+/=-]{16,}"), r"\1 [token]"),
     (re.compile(r"(?i)(postgres(?:ql)?://[^:/\s]+:)[^@\s]+@"), r"\1[password]@"),
@@ -131,7 +132,7 @@ _LOG_PATTERNS = [
 
 
 def _secret_values() -> list[str]:
-    vals = [config.OLLAMA_API_KEY, config.SUPABASE_SECRET_KEY, config.SUPABASE_PUBLISHABLE_KEY, config.APP_PASSWORD,
+    vals = [config.OPENAI_API_KEY, config.OLLAMA_API_KEY, config.SUPABASE_SECRET_KEY, config.SUPABASE_PUBLISHABLE_KEY, config.APP_PASSWORD,
             config.APP_SECRET_KEY]
     m = re.match(r"postgres(?:ql)?://[^:/\s]+:([^@\s]+)@", config.SUPABASE_DB_URL or "")
     if m:
