@@ -15,7 +15,7 @@
 <tr><td>Document purpose</td><td>Explain the project, in plain English, to mentors and reviewers who are not software or AI specialists.</td></tr>
 <tr><td>Prototype status</td><td>Working prototype, run on a single computer (127.0.0.1) and connected to a Supabase cloud project in the Mumbai region. Not deployed for public use.</td></tr>
 <tr><td>Based on</td><td>The code in the repository <em>SwarangiK-21/NyaySutra-AI</em> (branch <em>main</em>, commit 8e63731 plus one uncommitted dashboard fix), the live Supabase project and the running application, inspected on 25 October 2026.</td></tr>
-<tr><td>Student / team</td><td class="fill">[ To be filled in — not recorded in the repository ]</td></tr>
+<tr><td>Student / team</td><td>Group project: Swarangi Kothawade, Suraj Madane, Abhishek Kanade, Ayush Bankar</td></tr>
 <tr><td>Mentor</td><td class="fill">[ To be filled in ]</td></tr>
 <tr><td>Institution / course</td><td class="fill">[ To be filled in ]</td></tr>
 </table>
@@ -622,7 +622,7 @@ It is still a prototype. The law library is a curated subset of Indian law, case
 
 **Questions for the team (please confirm before sharing):**
 
-1. Student, team, mentor and institution details for the cover page.
+1. Mentor and institution details for the cover page (the team is now recorded).
 2. Has permission been checked for using the three Indian Kanoon judgment copies, and should a licensed judgment source be pursued?
 3. Ollama Cloud's data-handling terms for prompts containing client facts — has this been reviewed?
 4. Should e-mail reminders be enabled (which mail server)?
