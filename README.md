@@ -18,7 +18,7 @@
   <img src="docs/project_documentation/screenshots/04_research_answer.jpg" alt="NyaySutra research answer with numbered citations" width="900">
 </p>
 
-> **Team project.** Built by **Swarangi Kothawade** ([@SwarangiK-21](https://github.com/SwarangiK-21)) and **Suraj Madane** ([@SurajM80](https://github.com/SurajM80)). See [Contributors](#-contributors).
+> **Group project.** Built by **Swarangi Kothawade** ([@SwarangiK-21](https://github.com/SwarangiK-21)), **Suraj Madane** ([@SurajM80](https://github.com/SurajM80)), **Abhishek Kanade** and **Ayush Bankar**. See [Team](#-team).
 >
 > *AI-generated research aid, not legal advice. Verify every citation against the primary source.*
 
@@ -247,9 +247,20 @@ Automated tests (November 2026): **270 offline tests pass** on every push in CI,
 
 ---
 
-## 👥 Contributors
+## 👥 Team
 
-| Contributor | Contributions (from the commit history) |
+NyaySutra AI is a group project by four team members:
+
+| Team member | GitHub |
+|---|---|
+| **Swarangi Kothawade** | [@SwarangiK-21](https://github.com/SwarangiK-21) |
+| **Suraj Madane** | [@SurajM80](https://github.com/SurajM80) |
+| **Abhishek Kanade** | — |
+| **Ayush Bankar** | — |
+
+### Code contributions (from the commit history)
+
+| Contributor | Contributions |
 |---|---|
 | **Suraj Madane** ([@SurajM80](https://github.com/SurajM80)) | Original Streamlit + LangGraph prototype; rebuild as a lean agentic RAG app with the government-theme UI and official law library; project rename |
 | **Swarangi Kothawade** ([@SwarangiK-21](https://github.com/SwarangiK-21)) | Case search, sync, multilingual documents, drafting studio and i18n; migration to Supabase (Postgres + private Storage) with row-level security; accounts, roles, case access and AI guardrails; durable job queue and LLM resilience; OCR and new upload formats; Supreme Court judgment catalogue and citation checking; grounding improvements (40% → 74%); search speed-up, data retention, privacy page and deployment setup; UI redesign; STRIDE + Snyk security audit and fixes; database edit lock and change log; CI with Docker (x86 + ARM) and Snyk scans; Oracle Cloud deployment guide; Supabase keep-alive; Trash (recycle bin); switch to OpenAI `gpt-6-luna`; project documentation |
