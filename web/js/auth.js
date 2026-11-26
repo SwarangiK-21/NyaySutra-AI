@@ -15,6 +15,7 @@ export function applyNavPermissions() {
   $("#logoutBtn").classList.toggle("hidden", !(s.user && (isSupabase() || s.password_required)));
   $("#accountLink").classList.toggle("hidden", !(s.authenticated && isSupabase()));
   $("#signinLink").classList.toggle("hidden", Boolean(s.user) || !isSupabase());
+  $("#tourBtn")?.classList.toggle("hidden", !(s.authenticated && s.role && s.role !== "guest"));
   const who = s.user?.display_name || s.user?.email || "";
   $("#avatar").textContent = who ? who.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() : "?";
   $("#profileName").textContent = who;

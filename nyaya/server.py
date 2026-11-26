@@ -790,7 +790,10 @@ def dashboard(p: Principal = Depends(need("cases.list"))):
 # ── Preferences, notifications, activity ────────────────────────────────────
 LANGS = ("en", "hi", "mr")
 PREF_KEYS = {"lang": LANGS, "voice_lang": ("en-IN", "hi-IN", "mr-IN"), "tts": ("on", "off"),
-             "voice_consent": ("granted", "denied", ""), "draft_style": None}
+             "voice_consent": ("granted", "denied", ""), "draft_style": None,
+             # First-time guided tour (web/js/tour.js): progress follows the user across devices.
+             "tour_status": ("", "in_progress", "completed", "skipped"),
+             "tour_step": tuple(str(i) for i in range(40)), "tour_version": tuple(str(i) for i in range(1, 100))}
 ORG_KEYS = {"chat_retention_days"}
 
 
@@ -2050,6 +2053,31 @@ def integrations_enable(iid: str, body: EnabledIn, p: Principal = Depends(need("
 @app.get("/api/news")
 def news(q: str = "", limit: int = 50, p: Principal = Depends(need("library.read"))):
     return {"items": integrations.news(max(1, min(limit, 200)), q[:100])}
+
+
+# ── Help Centre: "Report a problem" (in-app; goes to the organisation's administrators) ──
+class SupportIn(BaseModel):
+    topic: Literal["sign_in", "ai_answers", "documents", "drafting", "calendar", "other"] = "other"
+    message: str = Field(min_length=5, max_length=2000)
+    page: str = Field("", max_length=120)
+
+
+@app.post("/api/support", dependencies=[Depends(rate(5, "support", 3600))])
+def support_report(body: SupportIn, p: Principal = Depends(need("account.self"))):
+    """A signed-in user reports a problem: every active administrator of their organisation gets an in-app
+    notification. The text is the user's own; the audit entry records only that a report was made."""
+    with db.system():
+        admins = [r["user_id"] for r in db.conn().execute(
+            "SELECT m.user_id FROM memberships m JOIN profiles pr ON pr.user_id = m.user_id "
+            "WHERE m.org_id = ? AND m.role = 'admin' AND pr.status = 'active'", (p.org_id,))]
+    who = p.display_name or p.email or "A user"
+    page = re.sub(r"[^\w#/?=&.-]", "", body.page)[:120]
+    sent = bool(admins) and db.notify(
+        "system", f"Problem report from {who[:80]}: {body.topic.replace('_', ' ')}",
+        body.message.strip() + (f"\n\nPage: {page}" if page else ""), "#/help", recipients=admins,
+        dedupe_key=f"support:{p.user_id}:{db.new_id('')}")
+    db.audit("support.report", "user", p.user_id, topic=body.topic, admins_notified=len(admins))
+    return {"ok": True, "delivered": sent}
 
 
 @app.get("/api/privacy")

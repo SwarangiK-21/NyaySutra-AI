@@ -35,11 +35,32 @@ export const fmtDateTime = (d) => { if (!d) return "—"; const x = new Date(d);
 export const daysTo = (d) => Math.round((new Date(d) - new Date(new Date().toDateString())) / 864e5);
 export const num = (n) => Number(n || 0).toLocaleString(locale());
 
+// ── Actionable errors: known messages point to the matching Help Centre article ──
+const HELP_FOR = [
+  [/paid plan|usage credits|no credit|monthly budget|temporarily unavailable|language model|AI service/i, "t-ai-unavailable"],
+  [/daily limit/i, "t-daily-limit"],
+  [/too many requests/i, "t-rate-limit"],
+  [/larger than|file is empty|does not match its extension|^accepted:/i, "t-upload-failed"],
+  [/quarantin/i, "t-quarantined"],
+  [/permission|not allowed|case not found|does not allow/i, "t-no-access"],
+  [/sign in to continue|please sign in/i, "t-signed-out"],
+];
+export const helpFor = (msg) => (HELP_FOR.find(([re]) => re.test(String(msg || ""))) || [])[1] || null;
+/** A "What can I do?" link to the Help Centre article for this error message, or nothing. */
+export const helpLink = (msg) => { const id = helpFor(msg); return id ? html` <a class="help-link" href="#/help?a=${id}">${t("help.what_to_do")}</a>` : ""; };
+
 // ── Toast ──
 let toastT;
 export function toast(msg, err = false) {
-  const el = $("#toast"); el.textContent = msg; el.className = "toast" + (err ? " err" : ""); el.hidden = false;
-  clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, 4200);
+  const el = $("#toast");
+  const id = err ? helpFor(msg) : null;
+  el.textContent = msg;
+  if (id) {
+    const a = document.createElement("a"); a.className = "help-link"; a.href = `#/help?a=${id}`; a.textContent = t("help.what_to_do");
+    el.append(" ", a);
+  }
+  el.className = "toast" + (err ? " err" : ""); el.hidden = false;
+  clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, id ? 9000 : 4200);
 }
 
 // ── API ──
