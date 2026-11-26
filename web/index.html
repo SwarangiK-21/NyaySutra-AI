@@ -30,6 +30,7 @@
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-copy" viewBox="0 0 24 24"><path d="M9 9h11v11H9zM5 15H4V4h11v1"/></symbol>
     <symbol id="i-news" viewBox="0 0 24 24"><path d="M4 5h13v14H6a2 2 0 0 1-2-2zM17 9h3v8a2 2 0 0 1-2 2M8 9h5M8 13h5"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.8M12 17.2v.2"/></symbol>
     <symbol id="i-tool" viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 8h8M8 12h2M12 12h4M8 16h2M12 16h4"/></symbol>
   </defs></svg>
 
@@ -42,15 +43,18 @@
         <a href="#/library" data-nav="library"><svg class="ic"><use href="#i-book"/></svg><span data-i18n="nav.library">Library</span></a>
       </nav>
       <span class="rail-gap"></span>
-      <button type="button" class="rail-btn" id="bellLink" data-perm="notifications.read" aria-label="Notifications" data-i18n-attr="aria-label:nav.updates"><svg class="ic"><use href="#i-bell"/></svg><span class="bell-count" id="bellCount" hidden></span></button>
-      <button type="button" class="rail-btn" data-theme-toggle aria-label="Switch between dark and light mode" data-i18n-attr="aria-label:theme.toggle"><svg class="ic"><use class="theme-ico" href="#i-sun"/></svg></button>
+      <button type="button" class="rail-btn" id="bellLink" data-perm="notifications.read" aria-label="Notifications" data-i18n-attr="aria-label:nav.updates;data-tip:nav.updates"><svg class="ic"><use href="#i-bell"/></svg><span class="bell-count" id="bellCount" hidden></span></button>
+      <a class="rail-btn" id="helpLink" href="#/help" aria-label="Help Centre" data-i18n-attr="aria-label:help.title;data-tip:help.title"><svg class="ic"><use href="#i-help"/></svg></a>
+      <button type="button" class="rail-btn" data-theme-toggle aria-label="Switch between dark and light mode" data-i18n-attr="aria-label:theme.toggle;data-tip:theme.toggle"><svg class="ic"><use class="theme-ico" href="#i-sun"/></svg></button>
       <details class="menu profile" id="profileMenu">
-        <summary class="rail-ava" aria-label="Profile and settings" data-i18n-attr="aria-label:profile.menu"><span id="avatar">?</span></summary>
+        <summary class="rail-ava" aria-label="Profile and settings" data-i18n-attr="aria-label:profile.menu;data-tip:profile.menu"><span id="avatar">?</span></summary>
         <div class="menu-list profile-list">
           <div class="small muted" id="profileName"></div>
           <button type="button" class="hidden" id="accountLink" data-panel-open="account" data-i18n="auth.account">Account</button>
           <button type="button" data-perm="users.manage|audit.read" data-panel-open="admin" data-i18n="admin.title">Administration</button>
           <button type="button" data-panel-open="privacy" data-i18n="nav.privacy">Privacy</button>
+          <a href="#/help" data-i18n="help.title">Help Centre</a>
+          <button type="button" id="tourBtn" class="hidden" data-i18n="tour.restart">Take the tour again</button>
           <button type="button" data-panel-open="about" data-i18n="nav.about">About</button>
           <div class="menu-sep"></div>
           <div class="menu-row"><span data-i18n="profile.language">Language</span><span class="lang-toggle" id="langToggle" role="group" aria-label="Language / भाषा"></span></div>

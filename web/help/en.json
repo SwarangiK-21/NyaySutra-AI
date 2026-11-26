@@ -1,0 +1,69 @@
+{
+  "sections": [
+    {
+      "id": "start",
+      "items": [
+        { "id": "g-first-question", "q": "Ask your first question",
+          "a": "1. Open **Ask** (the first icon in the side bar).\n2. Type or speak your question in English or Hindi, for example *What is the punishment under Section 138 of the NI Act?*\n3. Optional: choose a **case** to include its documents, **where to search** (case files and library, case files only, or library only) and a **state** for state laws.\n4. Press **Enter**. The answer appears with numbered citations like **[1]**. Click a source card to read the exact passage.\n5. The badge under the answer shows whether every citation was checked against the sources. Open *How this answer was produced* to see each step." },
+        { "id": "g-case", "q": "Create a case",
+          "a": "1. Go to **Cases** → **New case**.\n2. Fill in the title, case type and client (required), and any of court, CNR, FIR or filing number, state and district.\n3. Save. If details are still missing, save it as a **draft** and complete it later.\n4. On the case page you can add notes, colleagues (owner or advocate), documents and hearings." },
+        { "id": "g-upload", "q": "Upload and summarise documents",
+          "a": "1. Open a case and choose **Upload**, or use **Upload & summarise a document**.\n2. Choose files: PDF (including scanned), Word, Excel, PowerPoint, images, text and more, up to **40 MB** each.\n3. Processing runs in the background. You get a notification when the document is ready; scanned pages are read with OCR (English, Hindi, Marathi).\n4. Ready documents can be searched, cited in answers, translated and summarised." },
+        { "id": "g-draft", "q": "Draft a legal document",
+          "a": "1. Go to **Library** → **Drafting**.\n2. Choose the document type (for example a Section 138 notice), the court or forum, the case and supporting files, and type any facts you know.\n3. Generate. Unknown facts are left as visible placeholders like **[●: date of the cheque]** instead of guesses.\n4. Fill every placeholder, review, approve, then export to Word or PDF." },
+        { "id": "g-calendar", "q": "Add a hearing or deadline",
+          "a": "1. Go to **Cases** → **Calendar** → **New entry**.\n2. Choose the type (hearing, deadline, follow-up…), date, time, priority and reminders (at the time, 1 hour, the same day, 1 day or 7 days before).\n3. Reminders arrive in the notification bell, and by e-mail if you asked for it and e-mail is set up, even when the app is closed." },
+        { "id": "g-trash", "q": "Restore something you deleted",
+          "a": "Deleted cases, documents, drafts and calendar entries go to the **Trash** for **30 days**.\n\n1. Go to **Cases** → **Trash**.\n2. Click **Restore** next to the item. It comes back exactly as it was.\n\nAfter 30 days items are deleted for good. Administrators can also delete them permanently earlier." },
+        { "id": "g-mfa", "q": "Two-step sign-in and recovery codes",
+          "a": "Lawyers and administrators sign in with a password **and** a 6-digit code from an authenticator app.\n\n- When you set it up you get **10 recovery codes**. Keep them somewhere safe.\n- Lost your phone? At the code step choose the recovery-code option and enter one code. Each code works once.\n- Then open **Account** (profile menu) and set up the authenticator again." }
+      ]
+    },
+    {
+      "id": "faq",
+      "items": [
+        { "id": "f-sources", "q": "Where do the answers come from?",
+          "a": "Only from sources NyaySutra retrieves: official bare acts from India Code, the Supreme Court judgment catalogue, and the documents in your cases. The AI must cite them by number. If the sources do not cover the question, the answer says so instead of guessing." },
+        { "id": "f-verified", "q": "What does \"verified\" mean on an answer?",
+          "a": "After the answer is written, every citation is checked: each section, article and case it names must appear in one of the sources. If something is not supported, it is listed so you can check it. Always confirm important points in the primary source." },
+        { "id": "f-privacy", "q": "Is my client data private?",
+          "a": "Your data is stored in Supabase in India (Mumbai) with row-level security: only people added to a case can see it. Identity numbers such as Aadhaar, PAN and phone numbers are masked before any text is sent to the AI service. OpenAI's API terms state that this data is not used for training and is kept for up to 30 days. Details are on the **Privacy** page." },
+        { "id": "f-languages", "q": "Which languages are supported?",
+          "a": "The interface is in English and Hindi. You can ask in English or Hindi, and use voice input. Scanned documents are read in English, Hindi and Marathi." },
+        { "id": "f-limit", "q": "Is there a limit on AI questions?",
+          "a": "Yes: **200 AI requests per person per day** (questions, summaries, translations and drafts). The count resets at midnight. Library search, case files and the calendar have no such limit." },
+        { "id": "f-sharing", "q": "Who can see my cases?",
+          "a": "Only the people you add to the case as owner or advocate. Administrators see the organisation's list of cases so they can assign people, but not a case's contents unless they are added to it." },
+        { "id": "f-advice", "q": "Is this legal advice?",
+          "a": "No. NyaySutra is an AI research aid for legal professionals. Check every citation against the primary source before relying on it." },
+        { "id": "f-shortcuts", "q": "Are there keyboard shortcuts?",
+          "a": "- **Ctrl + K**: jump to any page or case.\n- **Enter**: send a question; **Shift + Enter**: new line.\n- **Esc**: close a panel or menu.\n- In the guided tour: **→** next, **←** previous, **Esc** skip." }
+      ]
+    },
+    {
+      "id": "trouble",
+      "items": [
+        { "id": "t-ai-unavailable", "q": "\"The AI service needs credit\" or \"temporarily unavailable\"",
+          "a": "The AI provider could not answer: its account has no credit left, or the service is busy or down. Library search, section lookup, case files and the calendar still work.\n\n- Try again in a few minutes.\n- If the message mentions credit or a budget, tell your **administrator**: the AI account needs topping up." },
+        { "id": "t-daily-limit", "q": "\"Daily limit of 200 AI requests reached\"",
+          "a": "You have used today's AI requests. The count resets at midnight. You can still search the library and work with your cases. If you regularly need more, ask your administrator." },
+        { "id": "t-rate-limit", "q": "\"Too many requests — please slow down\"",
+          "a": "Too many requests were sent in a short time. Wait a minute and try again." },
+        { "id": "t-not-found", "q": "The answer says \"not found in the sources\"",
+          "a": "NyaySutra only answers from its sources and will not guess. Try to:\n\n- name the Act and section (for example *Section 482 BNSS*);\n- choose the right **state** for state laws;\n- include your **case files** in the search scope;\n- rephrase the question more specifically.\n\nThe law you need may not be in the library yet: administrators can import Acts from India Code." },
+        { "id": "t-upload-failed", "q": "An upload was refused",
+          "a": "Common reasons:\n\n- the file is larger than **40 MB**;\n- the file type is not supported;\n- the content does not match the file extension (for example a renamed file);\n- the file is empty.\n\nSave the document as PDF or Word and try again." },
+        { "id": "t-quarantined", "q": "A document is \"quarantined\"",
+          "a": "The file was kept but not added to search because its text could not be read reliably (for example a very faint scan). Upload a clearer scan or a PDF with selectable text." },
+        { "id": "t-signed-out", "q": "I was signed out",
+          "a": "For security, a session ends after **60 minutes without activity** or **12 hours** in total, and when your password is reset. Sign in again; nothing you saved is lost." },
+        { "id": "t-lost-phone", "q": "I lost my authenticator app",
+          "a": "At the code step, use one of your **recovery codes**. If you have none left, ask your administrator to help you regain access, then set up two-step sign-in again in **Account**." },
+        { "id": "t-no-access", "q": "\"Case not found\" or \"You do not have permission\"",
+          "a": "You are not on that case, or your role does not allow the action. Ask the case owner to add you, or your administrator to change your role." },
+        { "id": "t-signup", "q": "I cannot create an account",
+          "a": "Accounts are by invitation only. Ask your administrator to invite your e-mail address, then sign up with that same address and confirm it from the e-mail you receive." }
+      ]
+    }
+  ]
+}

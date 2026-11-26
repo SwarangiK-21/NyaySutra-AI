@@ -15,6 +15,10 @@ import { viewSearch } from "./js/search.js";
 import { viewJobs } from "./js/jobs.js";
 import { viewCalendar } from "./js/calendar.js";
 import { viewTrash } from "./js/trash.js";
+import { viewHelp } from "./js/help.js";
+import { maybeStartTour, startTour } from "./js/tour.js";
+import { initTooltips } from "./js/ui.js";
+import { helpLink } from "./js/core.js";
 import { catalogueView } from "./js/statelaw.js";
 import { voiceControls, speakButton, bindSpeak } from "./js/voice.js";
 import { applyNavPermissions, can, membersCard, renderEnroll, renderForgot, renderLogin, renderMfa, renderReset,
@@ -41,11 +45,11 @@ async function refreshStatus() {
 const routes = { ask: viewResearch, research: viewResearch, dashboard: viewResearch, library: viewActs, cases: viewCases, acts: viewActs,
   drafts: viewDrafts, limitation: viewLimitation, about: viewAbout, privacy: viewPrivacy, lookup: viewCaseSearch, doc: viewDocument,
   upload: viewUpload, drafting: viewDrafting, notice: viewNotice, updates: viewUpdates, awareness: viewAwareness,
-  search: viewSearch, tools: viewTools, account: viewAccount, admin: viewAdmin, jobs: viewJobs, calendar: viewCalendar, trash: viewTrash,
+  search: viewSearch, tools: viewTools, account: viewAccount, admin: viewAdmin, jobs: viewJobs, calendar: viewCalendar, trash: viewTrash, help: viewHelp,
   login: (m, r) => renderLogin(route, r.q), signup: (m, r) => renderSignup(route, r.q), forgot: () => renderForgot(),
   "reset-password": () => renderReset() };
 // Pages a signed-out visitor may open (public legal information); everything else asks them to sign in.
-const PUBLIC = new Set(["ask", "research", "dashboard", "library", "acts", "awareness", "limitation", "login", "signup", "forgot", "reset-password", "about", "privacy"]);
+const PUBLIC = new Set(["ask", "research", "dashboard", "library", "acts", "awareness", "limitation", "login", "signup", "forgot", "reset-password", "about", "privacy", "help"]);
 const ASK_ROUTES = new Set(["ask", "research", "dashboard"]);
 const CASE_ROUTES = new Set(["cases", "calendar", "trash", "lookup", "upload", "doc"]);
 // Library sections and the pages inside each one.
@@ -94,6 +98,7 @@ async function route() {
   window.onbeforeunload = null;  // the draft editor sets an unsaved-changes guard while it is open
   hideDrawer();
   const r = parseHash();
+  if (r.name !== "help") state.prevRoute = location.hash.slice(0, 120);   // sent with a problem report
   const fn = r.name === "cases" && r.arg ? viewCase : routes[r.name] || viewResearch;
   const s = state.session || {};
   document.body.classList.remove("authpage");
@@ -119,6 +124,7 @@ async function route() {
   const page = `${r.name}/${r.arg || ""}`;
   if (page !== state.lastPage) { state.lastPage = page; $("#stage").scrollTop = 0; }
   if (!ASK_ROUTES.has(r.name)) main.focus({ preventScroll: true });
+  if (seq === routeSeq) maybeStartTour();   // first-time guided tour (once per load, until finished or skipped)
 }
 
 // ── Signed out / half-finished sign-in (session expired, second factor pending) ──
@@ -694,7 +700,7 @@ function renderAi(el, content, sources, meta, live = null) {
   const verify = v ? (v.grounded
     ? html`<div class="verify verify-ok">✓ ${t("research.audit_ok")}</div>`
     : html`<div class="verify verify-warn">⚠ ${t("research.audit_warn")}${v.unsupported && v.unsupported.length ? html`<ul>${v.unsupported.map((u) => html`<li>${u}</li>`)}</ul>` : ""}</div>`) : "";
-  const err = meta.error && meta.error !== "internal" && !content.includes(meta.error) ? html`<div class="notice notice-red">${meta.error}</div>` : "";
+  const err = meta.error && meta.error !== "internal" && !content.includes(meta.error) ? html`<div class="notice notice-red">${meta.error}${helpLink(meta.error)}</div>` : "";
   const disclaimer = !live && meta.intent && !NON_RESEARCH.includes(meta.intent) ? html`<div class="small muted">${t("research.disclaimer")}</div>` : "";
   const research = !live && content && meta.intent && !NON_RESEARCH.includes(meta.intent);
   const actions = research ? html`<div class="msg-actions">
@@ -1118,7 +1124,7 @@ async function openPanel(name) {
 }
 
 // ── Quick jump (Ctrl+K) ──
-const JUMPS = () => [["#/ask", t("nav.ask")], ["#/cases", t("nav.cases_short"), "cases.list"], ["#/cases?new=1", t("qa.new_case"), "case.create"], ["#/calendar", t("cal.title"), "calendar.use"], ["#/trash", t("trash.title"), "trash.use"],
+const JUMPS = () => [["#/ask", t("nav.ask")], ["#/cases", t("nav.cases_short"), "cases.list"], ["#/cases?new=1", t("qa.new_case"), "case.create"], ["#/calendar", t("cal.title"), "calendar.use"], ["#/trash", t("trash.title"), "trash.use"], ["#/help", t("help.title")],
   ["#/lookup", t("nav.lookup"), "casesearch.use"], ["#/upload", t("qa.upload_summarise"), "cases.list"], ["#/acts", t("nav.acts")], ["#/drafting", t("nav.drafting"), "drafting.use"], ["#/notice", t("lib.notice"), "drafting.use"],
   ["#/drafts", t("nav.templates")], ["#/limitation", t("nav.limitation")], ["#/tools", t("nav.tools")], ["#/updates", t("nav.updates"), "notifications.read"], ["#/awareness", t("nav.awareness")]].filter(([, , p]) => !p || can(p));
 async function openPalette() {
@@ -1164,6 +1170,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const p = e.target.closest("[data-panel-open]"); if (p) openPanel(p.dataset.panelOpen);
   });
   $("#bellLink").onclick = () => openPanel("updates");
+  initTooltips();
+  $("#tourBtn").onclick = () => { $("#profileMenu").open = false; startTour(0); };
   document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); if (!$("#palette").open) openPalette(); } });
   $("#drawerClose").onclick = hideDrawer;
   $("#drawer").addEventListener("click", (e) => { if (e.target.id === "drawer") hideDrawer(); });
