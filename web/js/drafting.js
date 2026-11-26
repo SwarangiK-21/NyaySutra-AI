@@ -63,7 +63,7 @@ function bindStudio({ kind }) {
   if (seed) { $("#d_instr").value = seed; store.set("draftSeed", null); }
   const loadCaseDocs = async () => {
     const cid = $("#d_case").value;
-    if (!cid) { mount($("#d_docs"), html`${t("drafting.choose_case_docs")}`); mount($("#d_base"), html`<option value="">—</option>`); return; }
+    if (!cid) { mount($("#d_docs"), html`${t("drafting.choose_case_docs")}`); if ($("#d_base")) mount($("#d_base"), html`<option value="">—</option>`); return; }
     const { documents } = await api(`/api/documents?case_id=${encodeURIComponent(cid)}`);
     const ready = documents.filter((d) => d.status === "ready");
     mount($("#d_docs"), ready.length ? html`${ready.map((d) => html`<label class="check"><input type="checkbox" name="doc" value="${d.id}"> ${d.title} <span class="muted">(${d.meta?.lang_name || ""})</span></label>`)}` : html`<span class="muted">${t("drafting.no_docs")}</span>`);
