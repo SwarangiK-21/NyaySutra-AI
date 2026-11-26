@@ -1091,7 +1091,7 @@ async function viewLimitation(main) {
       mount($("#limResult"), html`<div class="card-b"><div class="notice ${x.days_left >= 0 ? "notice-green" : "notice-red"}">
         <div class="small">${x.label} · ${x.period} · ${x.basis}</div>
         <div style="font-size:1.4rem;font-weight:800;color:var(--navy);margin:4px 0">${t("limitation.last_date")}: ${fmtDate(x.deadline)}</div>
-        <div><strong>${x.status}</strong> (${t("limitation.start").toLowerCase()} ${fmtDate(x.start_date)})</div></div></div>`);
+        <div><strong>${x.days_left >= 0 ? t("limitation.days_left", { n: x.days_left }) : t("limitation.expired", { n: -x.days_left })}</strong> (${t("limitation.start").toLowerCase()} ${fmtDate(x.start_date)})</div></div></div>`);
     } catch (err) { toast(err.message, true); }
   };
 }

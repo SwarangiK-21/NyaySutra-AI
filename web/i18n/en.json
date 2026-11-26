@@ -1343,5 +1343,7 @@
 "fb.admin_tab": "Answer quality",
 "fb.admin_lead": "Ratings of AI answers in your organisation over the last {days} days. Comments are not shown here.",
 "fb.admin_share": "{pct}% rated helpful",
-"fb.admin_none": "No 👎 ratings in this period."
+"fb.admin_none": "No 👎 ratings in this period.",
+"limitation.days_left": "{n} days remaining",
+"limitation.expired": "Expired {n} days ago"
 }

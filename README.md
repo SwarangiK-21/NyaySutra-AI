@@ -11,6 +11,8 @@
   <img src="https://img.shields.io/badge/LLM-OpenAI%20gpt--6--luna-000000?style=flat-square&logo=openai&logoColor=white" alt="OpenAI gpt-6-luna">
   <img src="https://img.shields.io/badge/OCR-RapidOCR%20(ONNX)-FF6F00?style=flat-square" alt="OCR">
   <img src="https://img.shields.io/badge/tests-pytest-0A9EDC?style=flat-square&logo=pytest&logoColor=white" alt="pytest">
+  <img src="https://img.shields.io/badge/eval-RAGAS-8A2BE2?style=flat-square" alt="RAGAS evaluation">
+  <img src="https://img.shields.io/badge/UI-English%20%7C%20हिंदी%20%7C%20मराठी-FF9933?style=flat-square" alt="English, Hindi, Marathi">
   <img src="https://img.shields.io/badge/status-working%20prototype-orange?style=flat-square" alt="Status">
 </p>
 
@@ -41,7 +43,7 @@ Indian legal research is slow and error-prone. Laws are long and frequently amen
 
 | Area | What it does |
 |---|---|
-| 🔎 **Legal research** | Streaming answers with `[n]` citations and an automatic citation audit, in English or Hindi; voice input (hi-IN / mr-IN / en-IN); focus on a single case document |
+| 🔎 **Legal research** | Streaming answers with `[n]` citations and an automatic citation audit, in English, Hindi or Marathi; hover or focus a citation to preview its source; voice input (hi-IN / mr-IN / en-IN); focus on a single case document |
 | 📁 **Case files** | Civil / Criminal / Family / Revenue / Consumer / Writ matters with CNR, FIR, court and jurisdiction fields; drafts for incomplete cases |
 | 📄 **Documents** | 21 file types — PDF (incl. scanned, via built-in OCR), Word, Excel, CSV, PowerPoint, OpenDocument, RTF, text, images; language + script detection; translation and structured summaries linked to page numbers |
 | 📚 **Law library** | 31 indexed bare acts (Constitution, BNS, BNSS, BSA, IPC, CPC, MLRC, Motor Vehicles Act…) with instant section lookup; India Code catalogue for all States/UTs with one-click import |
@@ -51,7 +53,10 @@ Indian legal research is slow and error-prone. Laws are long and frequently amen
 | 🔐 **Security** | Supabase Auth with e-mail verification + TOTP two-step, server-side sessions, roles and per-case membership, Postgres row-level security, invite-only sign-up, CSRF / Host / Origin checks and security headers, request-size limits, upload sandboxing, AI guardrails (English, Hindi, Marathi, base64 injection), per-person daily AI quota, append-only audit log |
 | 🔒 **Database lock** | Data can only be changed through the app: edits made directly in the Supabase dashboard or SQL editor are refused, and anything that gets through is recorded in a tamper-proof change log |
 | 🫀 **Keep-alive** | A scheduled GitHub Actions job pings the database every 3 days so the free Supabase project is never paused for inactivity, even when the app is off |
-| 🌐 **Languages** | English / हिंदी interface; Marathi dictionary started |
+| 🌐 **Languages** | Full English / हिंदी / मराठी interface and Help Centre (every string and help article in all three); answers, drafts and summaries in the chosen language |
+| 🧭 **Help & onboarding** | Searchable Help Centre (guides, FAQs, troubleshooting), first-time guided tour with saved progress, accessible tooltips, a "?" on each page linking to its help article, error messages with a "What can I do?" link, in-app **Report a problem** to the organisation's administrators, and a quick-create **+** menu |
+| 📈 **Answer quality** | 👍 / 👎 feedback with a reason under every answer and an **Answer quality** summary for administrators; offline **RAGAS** evaluation (faithfulness, answer relevancy, context precision / recall) on a synthetic question set — see [docs/EVALUATION.md](docs/EVALUATION.md) |
+| ♿ **Accessibility** | WCAG 2.2 AA review: keyboard-reachable tooltips and dialogs, contrast, heading order, minimum target sizes, text-size and high-contrast controls |
 
 ---
 
@@ -65,7 +70,7 @@ Indian legal research is slow and error-prone. Laws are long and frequently amen
 | LLM | OpenAI `gpt-6-luna` (answers, planning and verification; `LLM_PROVIDER=openai`). Alternative: `gpt-oss:120b` / `gpt-oss:20b` via Ollama Cloud or a local Ollama server (`LLM_PROVIDER=ollama`) |
 | Data | Supabase Postgres + private Storage (Mumbai region) with row-level security; SQLite + FTS5 for fully offline use |
 | Documents | PDFium (`pypdfium2`), RapidOCR, python-docx, openpyxl, python-pptx, fpdf2 + HarfBuzz |
-| Quality | pytest (offline suite with fake LLM, fake OpenAI API, fake Supabase Auth and mocked feeds); GitHub Actions CI on every push: tests, Docker image build and health check on x86 and ARM, Snyk dependency, code and container scans |
+| Quality | pytest (offline suite with fake LLM, fake OpenAI API, fake Supabase Auth and mocked feeds); RAGAS 0.4 for offline answer evaluation (optional, `requirements-eval.txt`); GitHub Actions CI on every push: tests, Docker image build and health check on x86 and ARM, Snyk dependency, code and container scans |
 | Deployment | Docker image (built and health-checked in CI), docker-compose and Caddy (HTTPS, size limits); step-by-step guide for an Oracle Cloud Always Free server — see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and [docs/DEPLOY_ORACLE.md](docs/DEPLOY_ORACLE.md). Not hosted yet |
 
 ---
@@ -110,7 +115,7 @@ web/ (vanilla JS) ──SSE──► nyaya/server.py (FastAPI, security middlewa
 
 **Design choices.** SQLite + FTS5 + NumPy for offline use (one file, ACID, BM25 built in, exact vector search over tens of thousands of chunks); fastembed (ONNX) instead of torch for a much smaller install and private embeddings; a cross-encoder reranker to gate weak evidence before the model answers.
 
-More: [database design](docs/project_documentation/diagrams/database.svg) · [user journey](docs/project_documentation/diagrams/user_journey.svg) · [full project documentation](docs/project_documentation/NyaySutra_Project_Documentation.md)
+More: [help & onboarding](docs/HELP_AND_ONBOARDING.md) · [answer evaluation](docs/EVALUATION.md) · [database design](docs/project_documentation/diagrams/database.svg) · [user journey](docs/project_documentation/diagrams/user_journey.svg) · [full project documentation](docs/project_documentation/NyaySutra_Project_Documentation.md)
 
 ---
 
@@ -159,11 +164,13 @@ On Windows you can also double-click **`start.bat`** after the one-time setup. O
 & "$env:USERPROFILE\.nyaysutra\venv\Scripts\python.exe" scripts\bootstrap_admin.py --email you@example.org
 ```
 
-Supabase setup and migrations: [docs/SUPABASE_MIGRATION.md](docs/SUPABASE_MIGRATION.md) (the app checks the schema version at start-up; the current one is 8) · roles and dashboard settings: [docs/SECURITY.md](docs/SECURITY.md).
+Supabase setup and migrations: [docs/SUPABASE_MIGRATION.md](docs/SUPABASE_MIGRATION.md) (the app checks the schema version at start-up; the current one is 9) · roles and dashboard settings: [docs/SECURITY.md](docs/SECURITY.md).
 
 **Language model.** `LLM_PROVIDER=openai` with `LLM_MODEL=gpt-6-luna` (about ₹0.17 per research question at standard pricing; set a monthly budget in the OpenAI dashboard). `LLM_PROVIDER=ollama` switches back to Ollama Cloud or a local Ollama server. Personal identifiers (Aadhaar, PAN, phone, account numbers…) are masked before any text leaves the server. Web search uses Ollama's search API and is off by default with OpenAI.
 
 **Keep-alive.** For the scheduled Supabase ping, add the repository secrets `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` (never the secret key); the workflow is `.github/workflows/supabase-keepalive.yml`.
+
+**Answer evaluation (optional).** `pip install --no-deps ragas==0.4.3` then `pip install -r requirements-eval.txt`; run `python eval/collect_answers.py --limit 3` and `python eval/ragas_eval.py eval/runs/<timestamp>/answers.jsonl`. Synthetic questions only; each answer costs a few judge calls. Details: [docs/EVALUATION.md](docs/EVALUATION.md).
 
 **OCR.** Built in via RapidOCR (ONNX Runtime, no admin rights). Its English and Hindi/Marathi models (~40 MB) download on first use, or ahead of time with `python -m nyaya.ocr download`. Low-confidence words are shown as `[?word]` — text is never guessed. Tesseract is used instead if installed (`OCR_ENGINE=auto|rapidocr|tesseract|off`).
 
@@ -173,7 +180,7 @@ Supabase setup and migrations: [docs/SUPABASE_MIGRATION.md](docs/SUPABASE_MIGRAT
 & "$env:USERPROFILE\.nyaysutra\venv\Scripts\python.exe" -m pytest
 ```
 
-The offline suite (270 tests) uses synthetic records, a fake LLM, a fake OpenAI API, a fake Supabase Auth server (`tests/fake_auth.py`) and `httpx.MockTransport` for feeds, so it tests plumbing and safety logic — **not answer quality**. It costs nothing to run and never calls a real model. Opt-in live tests against a real Supabase project: set `NYAYA_LIVE_SUPABASE=1`.
+The offline suite (280 tests; 5 opt-in live tests are skipped by default) uses synthetic records, a fake LLM, a fake OpenAI API, a fake Supabase Auth server (`tests/fake_auth.py`) and `httpx.MockTransport` for feeds, so it tests plumbing and safety logic — **not answer quality**. It costs nothing to run and never calls a real model. Opt-in live tests against a real Supabase project: set `NYAYA_LIVE_SUPABASE=1`.
 
 ---
 
@@ -193,14 +200,15 @@ NyaySutra-AI/
 │   ├── trash.py             # Trash: move, restore, purge after 30 days
 │   ├── accounts.py, sessions.py, authz.py, supabase_auth.py, privacy.py, retention.py
 │   └── db.py, jobs.py, integrations.py, ...
-├── web/                     # Vanilla JS frontend + i18n (en / hi / mr)
+├── web/                     # Vanilla JS frontend; i18n/ (en / hi / mr strings), help/ (Help Centre articles)
+├── eval/                    # RAGAS evaluation: synthetic questions, answer collector, scorer
 ├── data/
 │   ├── library/             # Official bare acts (with manifest + checksums), sample judgments, draft templates
 │   └── cases.json, samples/ # Synthetic demo matters and documents
 ├── supabase/migrations/     # Postgres schema, RLS, storage, retention, edit lock, keep-alive, Trash
 ├── scripts/                 # Bare-act fetcher, India Code / SC catalogue import, admin bootstrap
 ├── tests/                   # Offline pytest suite (security, reliability, formats, grounding, ...)
-├── docs/                    # Security, reliability, deployment, retention, project documentation, diagrams
+├── docs/                    # Security, reliability, deployment, retention, evaluation, help & onboarding, diagrams
 ├── deploy/                  # docker-compose + Caddy; oracle/setup-server.sh
 ├── .github/workflows/       # CI (tests, Docker x86 + ARM, Snyk) and the Supabase keep-alive
 ├── Dockerfile
@@ -217,8 +225,9 @@ Measured on the project's own benchmark (files in [`docs/competitive_analysis/ev
 |---|---|---|---|
 | Answers whose citations passed the audit (42 benchmark answers) | 17 / 42 (40%) | **31 / 42 (74%)** | `grounding_baseline.json` → `grounding_round4.json` |
 | Feature-level evaluation checks | — | 31 / 31 passed | `results.json` (2026-10-28) |
+| RAGAS validation run (2 synthetic questions, judge gpt-6-luna) | — | faithfulness **0.87**, answer relevancy **0.84**, context precision **0.85** | [docs/EVALUATION.md](docs/EVALUATION.md) (2026-11-26) |
 
-Automated tests (November 2026): **270 offline tests pass** on every push in CI, together with the Docker image build and health check on x86 and ARM and Snyk scans. A STRIDE threat model and Snyk audit (November 2026) found 18 issues; all are fixed, accepted, or left to an owner decision (the full report stays outside the repository because it contains test evidence; the earlier risk register is [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md)). These numbers describe this prototype's benchmark, not a lawyer-reviewed accuracy study.
+Automated tests (November 2026): **280 offline tests pass** on every push in CI, together with the Docker image build and health check on x86 and ARM and Snyk scans. A STRIDE threat model and Snyk audit (November 2026) found 18 issues; all are fixed, accepted, or left to an owner decision (the full report stays outside the repository because it contains test evidence; the earlier risk register is [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md)). An end-to-end check on 26 November 2026 opened every page (25 screens) in English, Hindi and Marathi and asked the same research question in each language: answers came back in the chosen language in about 12–14 seconds with 6–8 citations, and every citation audit passed. These numbers describe this prototype's benchmark, not a lawyer-reviewed accuracy study.
 
 ## 💼 Use cases
 
@@ -234,16 +243,18 @@ Automated tests (November 2026): **270 offline tests pass** on every push in CI,
 - The citation audit reduces, but cannot eliminate, model errors (it does catch slips such as naming the wrong Sanhita). `gpt-6-luna` is a small, low-cost model; no lawyer-reviewed accuracy measurement exists yet.
 - Questions, passages and (after consent) document text are sent to the AI provider (OpenAI) with identity numbers masked; names and facts are sent. OpenAI's API terms say this data is not used for training and is kept up to 30 days. For the most sensitive matters use a local Ollama server.
 - Web search is off with the OpenAI provider, so questions outside the law library and case files get "not found" rather than a web answer.
+- The Marathi interface and help were translated with AI assistance and checked automatically (placeholders, formatting); a review by a native Marathi speaker with legal vocabulary is still pending. Statute text, act names and limitation categories are shown as published (English).
+- The RAGAS validation run is only 2 questions; a full run with lawyer-written reference answers is still to be done.
 - OCR runs on the CPU (roughly 5–20 s per scanned page). E-mail reminders are built but SMTP is not configured; virus scanning (ClamAV) is supported but not installed.
 - Remaining security risks are tracked in [docs/SECURITY.md](docs/SECURITY.md) and [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md).
 
 ## 🔭 Future enhancements
 
 - Hosted deployment with HTTPS, backups and monitoring (Oracle Cloud guide ready: [docs/DEPLOY_ORACLE.md](docs/DEPLOY_ORACLE.md)).
-- A lawyer-reviewed answer-quality evaluation and a load test.
+- A lawyer-reviewed answer-quality evaluation (full RAGAS run with reference answers) and a load test.
 - Wider State-law coverage and a licensed judgments source.
-- Complete Marathi interface.
-- A better layout of the sign-in page on narrow phone screens.
+- Native-speaker review of the Marathi interface.
+- Optional next steps from the UI/UX review: a Help Centre assistant that answers how-to questions from the help articles, "What's new" tours, an installable app (PWA), and a LangGraph pilot for the multi-step drafting review.
 
 ---
 
@@ -263,7 +274,7 @@ NyaySutra AI is a group project by four team members:
 | Contributor | Contributions |
 |---|---|
 | **Suraj Madane** ([@SurajM80](https://github.com/SurajM80)) | Original Streamlit + LangGraph prototype; rebuild as a lean agentic RAG app with the government-theme UI and official law library; project rename |
-| **Swarangi Kothawade** ([@SwarangiK-21](https://github.com/SwarangiK-21)) | Case search, sync, multilingual documents, drafting studio and i18n; migration to Supabase (Postgres + private Storage) with row-level security; accounts, roles, case access and AI guardrails; durable job queue and LLM resilience; OCR and new upload formats; Supreme Court judgment catalogue and citation checking; grounding improvements (40% → 74%); search speed-up, data retention, privacy page and deployment setup; UI redesign; STRIDE + Snyk security audit and fixes; database edit lock and change log; CI with Docker (x86 + ARM) and Snyk scans; Oracle Cloud deployment guide; Supabase keep-alive; Trash (recycle bin); switch to OpenAI `gpt-6-luna`; project documentation |
+| **Swarangi Kothawade** ([@SwarangiK-21](https://github.com/SwarangiK-21)) | Case search, sync, multilingual documents, drafting studio and i18n; migration to Supabase (Postgres + private Storage) with row-level security; accounts, roles, case access and AI guardrails; durable job queue and LLM resilience; OCR and new upload formats; Supreme Court judgment catalogue and citation checking; grounding improvements (40% → 74%); search speed-up, data retention, privacy page and deployment setup; UI redesign; STRIDE + Snyk security audit and fixes; database edit lock and change log; CI with Docker (x86 + ARM) and Snyk scans; Oracle Cloud deployment guide; Supabase keep-alive; Trash (recycle bin); switch to OpenAI `gpt-6-luna`; Help Centre, guided tour, tooltips and contextual help; answer feedback and RAGAS evaluation; full Marathi interface; WCAG 2.2 AA fixes; project documentation |
 
 Contributions are welcome — please open an issue describing the change first. Never commit `.env` files or real client documents.
 
