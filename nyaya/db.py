@@ -568,6 +568,22 @@ MIGRATIONS: list[str] = [
     ALTER TABLE calendar_events ADD COLUMN deleted_at TEXT;
     ALTER TABLE calendar_events ADD COLUMN deleted_by TEXT;
     """,
+    # 7 — answer feedback (mirrors supabase/migrations/…14)
+    """
+    CREATE TABLE IF NOT EXISTS answer_feedback (
+        message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL,
+        org_id TEXT,
+        rating INTEGER NOT NULL CHECK (rating IN (-1, 1)),
+        reason TEXT NOT NULL DEFAULT '' CHECK (reason IN ('', 'wrong_law', 'wrong_citation', 'incomplete',
+                                                           'not_relevant', 'language', 'other')),
+        comment TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (message_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS ix_feedback_org ON answer_feedback(org_id, created_at);
+    """,
 ]
 
 _local = threading.local()
@@ -577,7 +593,7 @@ write_lock = threading.RLock()
 
 # Postgres schema version this code expects (supabase/migrations/*). The app never runs DDL against Postgres:
 # migrations are applied by the project owner (Supabase CLI / dashboard / MCP), and the app checks the version.
-PG_SCHEMA_VERSION = 8
+PG_SCHEMA_VERSION = 9
 DEFAULT_ORG = "org_default"
 
 

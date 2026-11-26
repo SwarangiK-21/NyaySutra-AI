@@ -1,0 +1,17 @@
+{
+  "about": "Synthetic RAGAS evaluation set: general legal research questions answerable from the law library. No client data, ever. 'reference' is an optional expected answer written or checked by a lawyer; when present, context recall is scored too.",
+  "questions": [
+    { "id": "R01", "category": "Statute lookup", "lang": "en", "question": "What does Section 138 of the Negotiable Instruments Act say?", "reference": "" },
+    { "id": "R02", "category": "Statute lookup", "lang": "en", "question": "What is the punishment for murder under the BNS?", "reference": "" },
+    { "id": "R03", "category": "Old/new code mapping", "lang": "en", "question": "Which BNS section replaced IPC Section 420 (cheating)?", "reference": "" },
+    { "id": "R04", "category": "Procedure", "lang": "en", "question": "How do I file an FIR?", "reference": "" },
+    { "id": "R05", "category": "Procedure", "lang": "en", "question": "Can I get anticipatory bail and under which provision?", "reference": "" },
+    { "id": "R06", "category": "Constitutional law", "lang": "en", "question": "What does Article 21 of the Constitution protect?", "reference": "" },
+    { "id": "R07", "category": "Family law", "lang": "en", "question": "What are the grounds for divorce under the Hindu Marriage Act?", "reference": "" },
+    { "id": "R09", "category": "Consumer law", "lang": "en", "question": "Where can a consumer file a complaint for defective goods worth 5 lakh?", "reference": "" },
+    { "id": "R11", "category": "Limitation", "lang": "en", "question": "What is the limitation period for a suit for recovery of money lent?", "reference": "" },
+    { "id": "T03", "category": "Procedure", "lang": "en", "question": "What is the time limit for filing an appeal against a conviction?", "reference": "" },
+    { "id": "C01", "category": "Case law", "lang": "en", "question": "What did the Supreme Court hold in ONGC v. Saw Pipes about patent illegality?", "reference": "" },
+    { "id": "M02", "category": "Hindi question", "lang": "hi", "question": "धारा 498A में क्या सज़ा है?", "reference": "" }
+  ]
+}

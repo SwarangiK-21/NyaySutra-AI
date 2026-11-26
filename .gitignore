@@ -23,3 +23,6 @@ docs/competitive_analysis/eval/web_recording.json
 security-audit/
 # local tool settings
 .claude/
+
+# RAGAS evaluation runs (answers, scores, reports): regenerate with eval/collect_answers.py + eval/ragas_eval.py
+eval/runs/

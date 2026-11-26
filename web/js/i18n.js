@@ -4,7 +4,7 @@
 export const LANGS = [
   { code: "en", label: "English", toggle: true },
   { code: "hi", label: "हिंदी", toggle: true },
-  { code: "mr", label: "मराठी", toggle: false },  // dictionary is partial; enable once reviewed
+  { code: "mr", label: "मराठी", toggle: true },  // full dictionary; a native-speaker review is still recommended
 ];
 const dicts = { en: {} };
 let current = "en";

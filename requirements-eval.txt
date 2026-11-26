@@ -1,0 +1,15 @@
+# RAGAS evaluation only (eval/ragas_eval.py). Not needed by the app, its tests or the Docker image.
+# Install RAGAS itself separately, pinned, without its test-set generator dependency (scikit-network has no ready-made
+# build for Python 3.14 on Windows and is not used for scoring):
+#   pip install --no-deps ragas==0.4.3
+#   pip install -r requirements-eval.txt
+langchain-community<0.4
+langchain-core>=0.3
+langchain-openai
+datasets>=4.0.0
+instructor
+tiktoken
+nest-asyncio
+appdirs
+diskcache>=5.6.3
+networkx

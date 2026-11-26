@@ -42,6 +42,17 @@
         <a href="#/cases" data-nav="cases" data-perm="cases.list"><svg class="ic"><use href="#i-folder"/></svg><span data-i18n="nav.cases_short">Cases</span></a>
         <a href="#/library" data-nav="library"><svg class="ic"><use href="#i-book"/></svg><span data-i18n="nav.library">Library</span></a>
       </nav>
+      <details class="menu quick-menu" id="quickMenu" data-perm="case.create|cases.list|calendar.use|drafting.use">
+        <summary class="rail-btn rail-plus" aria-label="Create new" data-i18n-attr="aria-label:quick.label;data-tip:quick.label"><svg class="ic"><use href="#i-plus"/></svg></summary>
+        <div class="menu-list quick-list" role="menu">
+          <div class="small muted quick-head" data-i18n="quick.label">Create new</div>
+          <a role="menuitem" href="#/cases?new=1" data-perm="case.create" data-i18n="qa.new_case">New case</a>
+          <a role="menuitem" href="#/upload" data-perm="cases.list" data-i18n="qa.upload_summarise">Upload &amp; summarise a document</a>
+          <a role="menuitem" href="#/calendar?new=1" data-perm="calendar.use" data-i18n="cal.new_title">New calendar entry</a>
+          <a role="menuitem" href="#/drafting" data-perm="drafting.use" data-i18n="qa.draft">Draft a legal document</a>
+          <a role="menuitem" href="#/notice" data-perm="drafting.use" data-i18n="qa.notice">Generate a legal notice</a>
+        </div>
+      </details>
       <span class="rail-gap"></span>
       <button type="button" class="rail-btn" id="bellLink" data-perm="notifications.read" aria-label="Notifications" data-i18n-attr="aria-label:nav.updates;data-tip:nav.updates"><svg class="ic"><use href="#i-bell"/></svg><span class="bell-count" id="bellCount" hidden></span></button>
       <a class="rail-btn" id="helpLink" href="#/help" aria-label="Help Centre" data-i18n-attr="aria-label:help.title;data-tip:help.title"><svg class="ic"><use href="#i-help"/></svg></a>

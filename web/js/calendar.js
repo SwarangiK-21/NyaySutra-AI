@@ -2,7 +2,7 @@
    Month / week / day views; entries are private to their owner. Reminders are scheduled and delivered by the server
    (bell notifications, optional e-mail), so they arrive even when this page is closed; desktop alerts are an extra,
    asked for only when the person turns them on. */
-import { $, $$, api, crumbs, html, mount, raw, spinner, store, toast } from "./core.js";
+import { $, $$, api, confirmDialog, crumbs, html, mount, raw, spinner, store, toast } from "./core.js";
 import { lang, t } from "./i18n.js";
 
 const TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata"; } catch { return "Asia/Kolkata"; } })();
@@ -212,7 +212,7 @@ export async function viewCalendar(main, r) {
     $("#evEdit", d).onclick = () => { d.close(); editEvent(e); };
     $("#evMove", d)?.addEventListener("click", () => { d.close(); editEvent(e, {}, true); });
     $("#evDel", d).onclick = async () => {
-      if (!confirm(t("cal.confirm_delete"))) return;
+      if (!await confirmDialog(t("common.are_you_sure"), t("cal.confirm_delete"), t("trash.move"))) return;
       try { await api(`/api/calendar/events/${encodeURIComponent(e.id)}`, { method: "DELETE" }); d.close(); toast(t("cal.deleted")); load(); }
       catch (err) { toast(err.message, true); }
     };
@@ -259,6 +259,7 @@ export async function viewCalendar(main, r) {
   renderAlerts();
   await load();
   const open = r.q.get("event");
+  if (r.q.get("new")) $("#calNew").click();   // quick-create "+" → New entry
   if (open) {
     try { const e = await api(`/api/calendar/events/${encodeURIComponent(open)}`); cursor = e.event_date; await load(); showEvent(e); }
     catch (err) { toast(err.message, true); }

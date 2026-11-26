@@ -10,7 +10,7 @@ const TOPICS = ["sign_in", "ai_answers", "documents", "drafting", "calendar", "o
 const cache = {};
 
 async function content() {
-  const code = lang() === "hi" ? "hi" : "en";
+  const code = ["hi", "mr"].includes(lang()) ? lang() : "en";
   if (!cache[code]) {
     const r = await fetch(`/static/help/${code}.json`, { credentials: "same-origin" });
     if (!r.ok) throw new Error(t("help.load_failed"));

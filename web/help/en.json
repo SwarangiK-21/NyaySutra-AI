@@ -29,7 +29,7 @@
         { "id": "f-privacy", "q": "Is my client data private?",
           "a": "Your data is stored in Supabase in India (Mumbai) with row-level security: only people added to a case can see it. Identity numbers such as Aadhaar, PAN and phone numbers are masked before any text is sent to the AI service. OpenAI's API terms state that this data is not used for training and is kept for up to 30 days. Details are on the **Privacy** page." },
         { "id": "f-languages", "q": "Which languages are supported?",
-          "a": "The interface is in English and Hindi. You can ask in English or Hindi, and use voice input. Scanned documents are read in English, Hindi and Marathi." },
+          "a": "The interface is in English, Hindi and Marathi (the Marathi translation is new: report any wording that looks wrong). You can ask in English, Hindi or Marathi, and use voice input. Scanned documents are read in English, Hindi and Marathi." },
         { "id": "f-limit", "q": "Is there a limit on AI questions?",
           "a": "Yes: **200 AI requests per person per day** (questions, summaries, translations and drafts). The count resets at midnight. Library search, case files and the calendar have no such limit." },
         { "id": "f-sharing", "q": "Who can see my cases?",
