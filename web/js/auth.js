@@ -250,7 +250,8 @@ export async function viewAccount(main) {
 export async function viewAdmin(main) {
   crumbs([[t("admin.title")]]);
   if (!can("users.manage")) { location.hash = "#/updates?tab=activity"; return; }
-  const [{ users, roles }, { invitations }] = await Promise.all([api("/api/admin/users"), api("/api/admin/invitations")]);
+  const [{ users, roles }, { invitations }, fb] = await Promise.all([api("/api/admin/users"), api("/api/admin/invitations"),
+    can("audit.read") ? api("/api/admin/feedback").catch(() => null) : null]);
   const me = state.session.user.id;
   const roleOpts = (sel) => roles.map((r) => html`<option value="${r}" ${r === sel ? raw("selected") : ""}>${t(`role_name.${r}`, {}, r)}</option>`);
   const open = invitations.filter((i) => !i.accepted_at);
@@ -258,7 +259,8 @@ export async function viewAdmin(main) {
     <p class="page-lead">${t("admin.lead")}</p>
     <div id="adminTabs">
     ${tabBar("adm", [["people", html`${t("admin.users", { n: users.length })}`], ["invite", t("admin.invite")],
-      ["pending", html`${t("admin.pending")}${open.length ? html`<span class="tab-n">${open.length}</span>` : ""}`]], t("admin.title"))}
+      ["pending", html`${t("admin.pending")}${open.length ? html`<span class="tab-n">${open.length}</span>` : ""}`],
+      ...(fb ? [["quality", t("fb.admin_tab")]] : [])], t("admin.title"))}
     ${tabPanel("adm", "people", html`<div class="card">
       <div class="table-wrap"><table class="gov"><thead><tr><th>${t("auth.name")}</th><th>${t("auth.role")}</th><th>${t("admin.status")}</th><th>${t("auth.mfa")}</th><th>${t("auth.last_active")}</th></tr></thead><tbody>
       ${users.map((u) => html`<tr><td><strong>${u.display_name || "—"}</strong><br><span class="small muted">${u.email}</span></td>
@@ -275,6 +277,13 @@ export async function viewAdmin(main) {
         ${open.length ? html`<ul class="list-plain">${open.map((i) => html`<li>${i.email} · ${t(`role_name.${i.role}`, {}, i.role)}
           <span class="small muted">${t("admin.expires")} ${fmtDateTime(i.expires_at)}</span> <button class="btn btn-ghost btn-sm" data-uninvite="${i.id}">${t("admin.revoke")}</button></li>`)}</ul>`
           : html`<div class="empty">${t("admin.none_pending")}</div>`}</div></div>`)}
+    ${fb ? tabPanel("adm", "quality", html`<div class="card" style="max-width:720px"><div class="card-b stack">
+        <p class="small muted">${t("fb.admin_lead", { days: fb.days })}</p>
+        <div class="row"><span class="chip chip-ok">👍 ${fb.up}</span><span class="chip chip-err">👎 ${fb.down}</span>
+          ${fb.up + fb.down ? html`<span class="small muted">${t("fb.admin_share", { pct: Math.round(100 * fb.up / (fb.up + fb.down)) })}</span>` : ""}</div>
+        ${fb.down ? html`<table class="gov"><thead><tr><th>${t("fb.why")}</th><th>👎</th></tr></thead><tbody>
+          ${Object.entries(fb.reasons).filter(([, n]) => n).sort((a, b) => b[1] - a[1]).map(([k, n]) => html`<tr><td>${t(`fb.r_${k}`)}</td><td>${n}</td></tr>`)}</tbody></table>`
+          : html`<div class="empty">${t("fb.admin_none")}</div>`}</div></div>`) : ""}
     </div>`);
   bindTabs($("#adminTabs"), "adm", "adminTab");
   $$("[data-role]", main).forEach((s) => { s.onchange = async () => {

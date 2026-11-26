@@ -1488,7 +1488,61 @@ def chat_messages(chat_id: str, p: Principal = Depends(need("research.use"))):
     chat = _own_chat(p, chat_id)
     msgs = [db.row_to_dict(r) for r in db.conn().execute(
         "SELECT id, role, content, sources, meta, created_at FROM messages WHERE chat_id=? ORDER BY id", (chat_id,))]
+    mine = {r["message_id"]: r for r in db.conn().execute(
+        "SELECT f.message_id, f.rating, f.reason FROM answer_feedback f JOIN messages m ON m.id = f.message_id "
+        "WHERE m.chat_id=? AND f.user_id=?", (chat_id, p.user_id))}
+    for m in msgs:
+        f = mine.get(m["id"])
+        m["feedback"] = {"rating": "up" if f["rating"] > 0 else "down", "reason": f["reason"]} if f else None
     return {"chat": chat, "messages": msgs}
+
+
+# ── Answer feedback (👍 / 👎 with an optional reason) ──
+FEEDBACK_REASONS = ("", "wrong_law", "wrong_citation", "incomplete", "not_relevant", "language", "other")
+
+
+class FeedbackIn(BaseModel):
+    rating: Literal["up", "down", "none"]
+    reason: Literal["", "wrong_law", "wrong_citation", "incomplete", "not_relevant", "language", "other"] = ""
+    comment: str = Field("", max_length=500)
+
+
+@app.put("/api/chats/{chat_id}/messages/{message_id}/feedback", dependencies=[Depends(rate(60, "feedback"))])
+def answer_feedback(chat_id: str, message_id: int, body: FeedbackIn, p: Principal = Depends(need("research.use"))):
+    """The caller rates one of the answers in their own chat; "none" withdraws the rating."""
+    _own_chat(p, chat_id)
+    if not db.conn().execute("SELECT 1 FROM messages WHERE id=? AND chat_id=? AND role='assistant'",
+                             (message_id, chat_id)).fetchone():
+        raise authz.NotFound("Answer not found")
+    now = db.now()
+    with db.tx() as c:
+        if body.rating == "none":
+            c.execute("DELETE FROM answer_feedback WHERE message_id=? AND user_id=?", (message_id, p.user_id))
+        else:
+            c.execute("INSERT INTO answer_feedback(message_id, user_id, org_id, rating, reason, comment, created_at, "
+                      "updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(message_id, user_id) DO UPDATE SET "
+                      "rating=excluded.rating, reason=excluded.reason, comment=excluded.comment, updated_at=excluded.updated_at",
+                      (message_id, p.user_id, p.org_id, 1 if body.rating == "up" else -1,
+                       body.reason if body.rating == "down" else "", body.comment.strip()[:500], now, now))
+    db.audit("ai.feedback", "message", str(message_id), rating=body.rating, reason=body.reason)   # never the comment
+    return {"ok": True, "rating": body.rating}
+
+
+@app.get("/api/admin/feedback")
+def feedback_summary(days: int = 90, p: Principal = Depends(need("audit.read"))):
+    """Counts for the administrator's own organisation: how answers are rated and why (no answer or comment text)."""
+    days = max(1, min(days, 365))
+    since = (date.today() - timedelta(days=days)).isoformat()
+    with db.system():
+        rows = db.conn().execute("SELECT rating, reason, COUNT(*) AS n FROM answer_feedback WHERE org_id=? AND "
+                                 "updated_at >= ? GROUP BY rating, reason", (p.org_id, since)).fetchall()
+    up = sum(r["n"] for r in rows if r["rating"] > 0)
+    down = sum(r["n"] for r in rows if r["rating"] < 0)
+    reasons = {k: 0 for k in FEEDBACK_REASONS if k}
+    for r in rows:
+        if r["rating"] < 0 and r["reason"]:
+            reasons[r["reason"]] = reasons.get(r["reason"], 0) + r["n"]
+    return {"days": days, "up": up, "down": down, "reasons": reasons}
 
 
 @app.delete("/api/chats/{chat_id}")

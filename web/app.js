@@ -1,6 +1,6 @@
 /* NyaySutra AI — frontend entry: router, chrome, and the core views (dashboard, cases, research, library).
    Feature views live in /static/js/*.js. No external libraries (CSP: script-src 'self'). */
-import { $, $$, ACCEPT_UPLOADS, api, bindRowLinks, bindTabs, COLL_LABEL, crumbs, fieldError, fmtDate, formData, hideDrawer, html,
+import { $, $$, ACCEPT_UPLOADS, api, bindRowLinks, bindTabs, COLL_LABEL, confirmDialog, crumbs, fieldError, fmtDate, formData, hideDrawer, html,
   initSession, markdown, mount, num, raw, reference, setUnauthenticatedHandler, showDrawer, spinner, state, store,
   tabBar, tabPanel, toast, TYPE_BADGE } from "./js/core.js";
 import { safeUrl } from "./js/core.js";
@@ -124,7 +124,19 @@ async function route() {
   const page = `${r.name}/${r.arg || ""}`;
   if (page !== state.lastPage) { state.lastPage = page; $("#stage").scrollTop = 0; }
   if (!ASK_ROUTES.has(r.name)) main.focus({ preventScroll: true });
-  if (seq === routeSeq) maybeStartTour();   // first-time guided tour (once per load, until finished or skipped)
+  if (seq === routeSeq) { contextHelp(r.name); maybeStartTour(); }   // first-time guided tour (once per load, until finished or skipped)
+}
+
+// Contextual help: a small "?" after the page heading opens the Help Centre article for this page.
+const PAGE_HELP = { cases: "g-case", upload: "g-upload", doc: "g-upload", calendar: "g-calendar", trash: "g-trash",
+  drafting: "g-draft", notice: "g-draft", drafts: "g-draft", account: "g-mfa", acts: "f-sources", library: "f-sources" };
+function contextHelp(name) {
+  const id = PAGE_HELP[name], h = $("#secnav .sec-head h1") || $("#main h1.page-title");
+  if (!id || !h || $(".ctx-help", h)) return;
+  const a = document.createElement("a");
+  a.className = "ctx-help"; a.href = `#/help?a=${id}`; a.textContent = "?";
+  a.setAttribute("aria-label", t("help.about_page")); a.dataset.tip = t("help.about_page");
+  h.append(" ", a);
 }
 
 // ── Signed out / half-finished sign-in (session expired, second factor pending) ──
@@ -374,7 +386,7 @@ async function viewCase(main, r) {
       catch (e) { toast(e.message, true); }
     }; });
     $$("[data-del]", $("#docList")).forEach((b) => { b.onclick = async () => {
-      if (!confirm(t("case.confirm_delete_doc"))) return;
+      if (!await confirmDialog(t("common.are_you_sure"), t("case.confirm_delete_doc"), t("trash.move"))) return;
       try { await api(`/api/documents/${encodeURIComponent(b.dataset.del)}`, { method: "DELETE" }); toast(t("case.doc_deleted")); loadDocs(); } catch (e) { toast(e.message, true); }
     }; });
     clearInterval(state.pollTimer);
@@ -412,7 +424,7 @@ async function viewCase(main, r) {
     try { await api(`/api/cases/${encodeURIComponent(id)}`, { method: "PATCH", body }); toast(t("common.saved")); route(); } catch (err) { fieldError(form, err); }
   };
   if ($("#deleteCase")) $("#deleteCase").onclick = async () => {
-    if (!confirm(t("case.confirm_delete"))) return;
+    if (!await confirmDialog(t("common.are_you_sure"), t("case.confirm_delete"), t("trash.move"))) return;
     try { await api(`/api/cases/${encodeURIComponent(id)}`, { method: "DELETE" }); state.caseId = null; store.set("caseId", null); toast(t("case.deleted")); location.hash = "#/cases"; } catch (err) { toast(err.message, true); }
   };
   if ($("#noteForm")) $("#noteForm").onsubmit = async (e) => {
@@ -573,6 +585,8 @@ async function viewResearch(main, r) {
   };
   voiceControls($("#voiceSlot"), qEl, $("#voiceStatus"));
   $("#thread").addEventListener("click", onCiteClick);
+  $("#thread").addEventListener("mouseover", citePreview, true);   // capture: before the tooltip reads data-tip
+  $("#thread").addEventListener("focusin", citePreview, true);
   $("#thread").addEventListener("click", onAnswerAction);
   bindSpeak($("#thread"));
   $("#sourcesPanel").addEventListener("click", (e) => { const card = e.target.closest("[data-src]"); if (card) openSource(JSON.parse(card.dataset.src)); });
@@ -632,7 +646,7 @@ async function loadHistory() {
     <button type="button" data-delsearch="${s.id}" aria-label="${t("research.delete_search")}" title="${t("common.delete")}">✕</button></li>`)}` : html`<li class="empty small">${t("research.no_searches")}</li>`);
   mount($("#histClear"), searches.length ? html`<button type="button" class="btn btn-ghost btn-sm" id="clearSearches">${t("research.clear_searches")}</button>` : "");
   $$("[data-delchat]", $("#histChats")).forEach((b) => { b.onclick = async () => {
-    if (!confirm(t("research.confirm_delete_chat"))) return;
+    if (!await confirmDialog(t("common.are_you_sure"), t("research.confirm_delete_chat"), t("common.delete"))) return;
     try { await api(`/api/chats/${encodeURIComponent(b.dataset.delchat)}`, { method: "DELETE" }); } catch (e) { toast(e.message, true); return; }
     if (b.dataset.delchat === state.chatId) location.hash = `#/ask?case=${encodeURIComponent(state.caseId || "")}`; else loadHistory();
   }; });
@@ -640,7 +654,7 @@ async function loadHistory() {
     try { await api(`/api/history/searches/${encodeURIComponent(b.dataset.delsearch)}`, { method: "DELETE" }); loadHistory(); } catch (e) { toast(e.message, true); }
   }; });
   $("#clearSearches")?.addEventListener("click", async () => {
-    if (!confirm(t("research.confirm_clear_searches"))) return;
+    if (!await confirmDialog(t("common.are_you_sure"), t("research.confirm_clear_searches"), t("common.clear"))) return;
     try { await api("/api/history/searches", { method: "DELETE" }); toast(t("research.searches_cleared")); loadHistory(); } catch (e) { toast(e.message, true); }
   });
 }
@@ -651,7 +665,7 @@ async function loadChat(chatId) {
   let last = null;
   for (const m of messages) {
     if (m.role === "user") addUserMsg(m.content);
-    else { const el = addAiMsg(); renderAi(el, m.content, m.sources, m.meta || {}); last = m; }
+    else { const el = addAiMsg(); renderAi(el, m.content, m.sources, { ...(m.meta || {}), message_id: m.id, feedback: m.feedback }); last = m; }
   }
   if (last) renderSourcesPanel(last.sources || []);
   thread.scrollTop = thread.scrollHeight;
@@ -707,13 +721,49 @@ function renderAi(el, content, sources, meta, live = null) {
       <button type="button" class="btn btn-ghost btn-sm" data-act="save">${icon("folder", "ic-s")} ${t("ask.save_case")}</button>
       <button type="button" class="btn btn-ghost btn-sm" data-act="draft">${icon("pen", "ic-s")} ${t("ask.draft_from")}</button>
       <button type="button" class="btn btn-ghost btn-sm" data-act="copy">${icon("copy", "ic-s")} ${t("ask.copy")}</button></div>
-    <div class="msg-follow">${["ask.f1", "ask.f2", "ask.f3"].map((k) => html`<button type="button" data-follow="${t(k)}">${t(k)}</button>`)}</div>` : "";
+    <div class="msg-follow">${["ask.f1", "ask.f2", "ask.f3"].map((k) => html`<button type="button" data-follow="${t(k)}">${t(k)}</button>`)}</div>
+    ${meta.message_id ? feedbackBar(meta.message_id, meta.feedback) : ""}` : "";
   el.dataset.text = content;
   mount(el, html`${metaRow}<div class="md">${markdown(content)}</div>${status}<div class="msg-foot">${err}${verify}${disclaimer}${trace}</div>${actions}`);
 }
 
+// ── Answer feedback: 👍 / 👎 with an optional reason (PUT /api/chats/{chat}/messages/{id}/feedback) ──
+const FB_REASONS = ["wrong_law", "wrong_citation", "incomplete", "not_relevant", "language", "other"];
+function feedbackBar(mid, fb) {
+  const r = fb?.rating || "";
+  return html`<div class="fb" data-fb="${mid}" data-rating="${r}">
+    <span class="small muted">${t("fb.prompt")}</span>
+    <button type="button" class="fb-btn" data-rate="up" aria-pressed="${String(r === "up")}" aria-label="${t("fb.up")}" data-tip="${t("fb.up")}">👍</button>
+    <button type="button" class="fb-btn" data-rate="down" aria-pressed="${String(r === "down")}" aria-label="${t("fb.down")}" data-tip="${t("fb.down")}">👎</button>
+    <div class="fb-why" ${r === "down" ? "" : raw("hidden")}><span class="small muted">${t("fb.why")}</span>
+      ${FB_REASONS.map((k) => html`<button type="button" class="chip fb-reason" data-reason="${k}" aria-pressed="${String(fb?.reason === k)}">${t(`fb.r_${k}`)}</button>`)}
+      <span class="fb-more"><input type="text" class="fb-comment" maxlength="500" placeholder="${t("fb.comment_ph")}" aria-label="${t("fb.comment_ph")}">
+      <button type="button" class="btn btn-ghost btn-sm" data-fbsend>${t("fb.send")}</button></span></div>
+    <span class="small muted fb-thanks" aria-live="polite"></span></div>`;
+}
+async function onFeedback(e) {
+  const bar = e.target.closest(".fb"); if (!bar) return false;
+  const rateBtn = e.target.closest("[data-rate]"), reasonBtn = e.target.closest("[data-reason]"), send = e.target.closest("[data-fbsend]");
+  if (!rateBtn && !reasonBtn && !send) return true;
+  let rating = bar.dataset.rating || "", reason = $(".fb-reason[aria-pressed=true]", bar)?.dataset.reason || "";
+  if (rateBtn) { rating = rateBtn.dataset.rate === rating ? "none" : rateBtn.dataset.rate; if (rating !== "down") reason = ""; }
+  if (reasonBtn) { rating = "down"; reason = reasonBtn.dataset.reason === reason ? "" : reasonBtn.dataset.reason; }
+  const comment = rating === "down" ? ($(".fb-comment", bar)?.value || "").trim() : "";
+  try {
+    await api(`/api/chats/${encodeURIComponent(state.chatId)}/messages/${encodeURIComponent(bar.dataset.fb)}/feedback`,
+      { method: "PUT", body: { rating, reason, comment } });
+  } catch (err) { toast(err.message, true); return true; }
+  bar.dataset.rating = rating === "none" ? "" : rating;
+  $$("[data-rate]", bar).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.rate === rating)));
+  $$(".fb-reason", bar).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.reason === reason)));
+  $(".fb-why", bar).hidden = rating !== "down";
+  $(".fb-thanks", bar).textContent = rating === "none" ? "" : t(send || reasonBtn ? "fb.thanks_detail" : "fb.thanks");
+  return true;
+}
+
 /** Save to case, Draft from this, Copy, and the follow-up suggestions under an answer. */
 async function onAnswerAction(e) {
+  if (await onFeedback(e)) return;
   const follow = e.target.closest("[data-follow]");
   if (follow) { if (!state.streaming) send(follow.dataset.follow); return; }
   const b = e.target.closest("[data-act]"); if (!b) return;
@@ -742,6 +792,16 @@ function renderSourcesPanel(sources) {
       ? [s.domain, s.reliability, s.published ? t("research.published", { date: s.published }) : t("research.date_unknown")].filter(Boolean).join(" · ")
       : [s.label, s.page && !/^pp?\./.test(s.label || "") ? `p. ${s.page}` : ""].filter(Boolean).join(" · ")}</div>
     <div class="src-snip">${s.snippet}</div></div>`)}` : html`<div class="empty">${t("research.no_sources")}</div>`);
+}
+
+/** Hover / keyboard-focus preview of a citation [n]: filled in just before the shared tooltip (web/js/ui.js) shows. */
+function citePreview(e) {
+  const b = e.target.closest?.("button.cite"); if (!b || b.dataset.tip) return;
+  const msg = b.closest(".msg-ai"); const list = state.msgSources.get(msg?.dataset.mid) || [];
+  const s = list.find((x) => String(x.n) === b.dataset.cite); if (!s) return;
+  const where = s.citation || [s.title, s.label].filter(Boolean).join(", ");
+  const snip = String(s.snippet || "").replace(/\s+/g, " ").trim();
+  b.dataset.tip = `[${s.n}] ${where}${snip ? ` — ${snip.slice(0, 170)}${snip.length > 170 ? "…" : ""}` : ""} · ${t("research.cite_open")}`;
 }
 
 function onCiteClick(e) {
@@ -831,7 +891,7 @@ async function send(text, extra = {}) {
           case "verify": meta.verify = evt; break;
           case "final": content = evt.text; break;   // the server removed something from the reply (output filter)
           case "error": meta.error = evt.text; break;
-          case "done": meta = { ...meta, ...(evt.meta || {}), elapsed: evt.elapsed }; live = null; break;
+          case "done": meta = { ...meta, ...(evt.meta || {}), elapsed: evt.elapsed, message_id: evt.message_id }; live = null; break;
         }
         schedule();
       }

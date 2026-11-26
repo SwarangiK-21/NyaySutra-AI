@@ -44,3 +44,20 @@ def test_problem_reports_go_to_this_organisations_administrators_only(fake):
     with db.system():
         detail = db.conn().execute("SELECT detail FROM audit_log WHERE action='support.report'").fetchone()["detail"]
     assert "scanned PDF" not in detail                                                      # never the text itself
+
+
+def test_every_language_has_every_string_and_help_article():
+    """hi and mr must translate every English key with the same {placeholders}, and carry the same help articles."""
+    import json
+    import re
+    from pathlib import Path
+    web = Path(__file__).resolve().parents[1] / "web"
+    ph = lambda s: sorted(re.findall(r"\{\w+\}", s))  # noqa: E731
+    en = json.loads((web / "i18n" / "en.json").read_text("utf-8"))
+    ids = lambda d: [i["id"] for sec in d["sections"] for i in sec["items"]]  # noqa: E731
+    help_en = ids(json.loads((web / "help" / "en.json").read_text("utf-8")))
+    for code in ("hi", "mr"):
+        d = json.loads((web / "i18n" / f"{code}.json").read_text("utf-8"))
+        assert not [k for k in en if k not in d], code
+        assert not [k for k in en if ph(en[k]) != ph(d[k])], code
+        assert ids(json.loads((web / "help" / f"{code}.json").read_text("utf-8"))) == help_en, code
